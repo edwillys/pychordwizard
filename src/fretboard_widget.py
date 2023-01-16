@@ -1,7 +1,8 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsEllipseItem, QGraphicsSceneMouseEvent
+from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsEllipseItem, \
+    QGraphicsSceneMouseEvent, QGraphicsTextItem, QGraphicsLineItem, QAbstractGraphicsShapeItem
 from PyQt5.QtCore import QRectF, QLineF, QPointF, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QPen, QLinearGradient, QColor, QBrush, QTransform
+from PyQt5.QtGui import QPen, QLinearGradient, QColor, QBrush, QTransform, QFont
 
 
 class FretboardNoteItem(QGraphicsEllipseItem):
@@ -122,6 +123,24 @@ class FretboardRectItem(QGraphicsRectItem):
         event.accept()
 
 
+class StringButtonItem(QGraphicsRectItem):
+    def __init__(self, x: float, y: float, w: float, h: float, parent=None) -> None:
+        super().__init__(x, y, w, h, parent)
+        self.is_root = False
+        self.is_active = False
+
+    def paint(self, painter: QtGui.QPainter, option, widget) -> None:
+        painter.setPen(QtCore.Qt.darkGray)
+        rect = self.rect()
+        if not self.is_active:
+            painter.drawLine(QLineF(rect.topLeft(), rect.bottomRight()))
+            painter.drawLine(QLineF(rect.bottomLeft(), rect.topRight()))
+        else:
+            if self.is_root:
+                painter.setBrush(QtCore.Qt.darkGray)
+            painter.drawEllipse(rect)
+
+
 class MyGraphicsScene(QGraphicsScene):
     barre_pressed = pyqtSignal(int, tuple)
     existing_note_pressed = pyqtSignal(int, int)
@@ -132,8 +151,9 @@ class FretboardView(QtWidgets.QGraphicsView):
     FRETWIDTH, FRETHEIGHT = 20, 30
     NOTEDIAMETER = 7
     BARRE_THICKNESS = NOTEDIAMETER
+    STRING_BTN_SITZE = 5
 
-    def __init__(self, num_frets=6, num_strings=6, parent=None):
+    def __init__(self, num_frets=6, num_strings=6, fret_start=5, parent=None):
         super().__init__(parent)
         self.initialize()
 
@@ -162,6 +182,35 @@ class FretboardView(QtWidgets.QGraphicsView):
             for rect in frets:
                 rect.setPen(QPen(QtCore.Qt.gray, 1))
                 self.scene().addItem(rect)
+
+        # fret label
+        self.fret_text_item = QGraphicsTextItem()
+        self.fret_text_item.setDefaultTextColor(QtCore.Qt.darkGray)
+        self.fret_text_item.setPos(QPointF(-20, 0))
+        self.fret_text_item.setFont(QFont("Courier New", 7, weight=100))
+        self.scene().addItem(self.fret_text_item)
+
+        # nutmeg
+        self.nutmeg_item = QGraphicsLineItem(
+            0., 0., (self.m_num_strings - 1) * self.FRETWIDTH, 0.)
+        self.nutmeg_item.setPen(QPen(QtCore.Qt.black, 3.))
+        self.scene().addItem(self.nutmeg_item)
+
+        self.setFretStart(fret_start)
+
+        # string buttons
+        self.string_button_items = [
+            StringButtonItem(i * self.FRETWIDTH - self.STRING_BTN_SITZE / 2.,
+                             self.FRETHEIGHT *
+                             (self.m_num_frets - 1) +
+                             self.STRING_BTN_SITZE / 2. + 5.,
+                             self.STRING_BTN_SITZE,
+                             self.STRING_BTN_SITZE)
+            for i in range(self.m_num_strings)
+        ]
+        for str_btn in self.string_button_items:
+            self.scene().addItem(str_btn)
+
         # connect note press signal to slot
         self.scene().barre_pressed.connect(self.onBarrePressed)
         self.scene().existing_note_pressed.connect(self.onExistingNotePressed)
@@ -341,7 +390,7 @@ class FretboardView(QtWidgets.QGraphicsView):
                 self.scene().addItem(item_to_add)
             else:
                 self.barre_items[fret][string_coord] = item
-    
+
     def removeBarreItem(self, fret: int, string_coords: tuple[int, int]):
         if fret in self.barre_items and string_coords in self.barre_items[fret]:
             self.scene().removeItem(self.barre_items[fret][string_coords])
@@ -363,6 +412,27 @@ class FretboardView(QtWidgets.QGraphicsView):
 
         return (x, y, w, self.BARRE_THICKNESS)
 
+    def setFretStart(self, fret: int):
+        self.setOpenTop(fret > 0)
+        self.fret_text_item.setVisible(fret > 0)
+        self.nutmeg_item.setVisible(fret == 0)
+        fret_digit_last = (fret % 10)
+        fret_digit_before_last = (fret // 10) % 10
+
+        if fret_digit_before_last == 1:
+            superscript = "th"
+        else:
+            if fret_digit_last == 1:
+                superscript = "st"
+            elif fret_digit_last == 2:
+                superscript = "nd"
+            elif fret_digit_last == 3:
+                superscript = "rd"
+            else:
+                superscript = "th"
+        # self.fret_start = fret
+        self.fret_text_item.setHtml(
+            "{}<sup>{}</sup>".format(fret, superscript))
 
 
 if __name__ == '__main__':
@@ -374,7 +444,6 @@ if __name__ == '__main__':
     lay.addWidget(QtWidgets.QLabel("Fretboard",
                   alignment=QtCore.Qt.AlignCenter))
     fretboard = FretboardView()
-    # fretboard.setOpenTop(True)
     fretboard.setOpenBottom(True)
     lay.addWidget(fretboard)
     w.resize(640, 480)
