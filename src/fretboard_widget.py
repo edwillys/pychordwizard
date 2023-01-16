@@ -266,14 +266,13 @@ class FretboardBoard(QtWidgets.QGraphicsView):
 
                     # check if the barre intersects with any notes and overwrite them (delete the notes)
                     coords_to_delete = []
+                    leftmost_string, rightmost_string = sorted(
+                        self.barre_string_coord)
                     for note_fret, note_string in self.note_items:
-                        if note_fret == self.barre_fret:
-                            leftmost_string = min(
-                                self.barre_string_coord[0], self.barre_string_coord[1])
-                            rightmost_string = max(
-                                self.barre_string_coord[0], self.barre_string_coord[1])
-                            if note_string >= leftmost_string and note_string <= rightmost_string:
-                                coords_to_delete += [(note_fret, note_string)]
+                        if note_fret == self.barre_fret and \
+                                note_string >= leftmost_string and \
+                                note_string <= rightmost_string:
+                            coords_to_delete += [(note_fret, note_string)]
 
                     for coord in coords_to_delete:
                         self.removeSingleNote(coord)
