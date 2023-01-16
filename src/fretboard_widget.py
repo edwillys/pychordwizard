@@ -199,10 +199,9 @@ class FretboardBoard(QtWidgets.QGraphicsView):
         for rect in self.fret_rect[-1]:
             rect.m_open_bottom = enable
 
-    @pyqtSlot(int, int)
-    def onNewNotePressed(self, fret: int, string: int):
-        self.note_coord = (fret, string)
-        if self.note_coord not in self.note_items:
+    def addSingleNote(self, note_coords: tuple[int, int]):
+        if note_coords not in self.note_items:
+            fret, string = note_coords
             # create circle for the note and add to dictionary
             x = string * self.FRETWIDTH - self.NOTEDIAMETER / 2
             y = fret * self.FRETHEIGHT - self.FRETHEIGHT / 2 - self.NOTEDIAMETER / 2
@@ -212,19 +211,24 @@ class FretboardBoard(QtWidgets.QGraphicsView):
             self.scene().addItem(note)
             self.note_items[(fret, string)] = note
 
-    @pyqtSlot(int, tuple)
-    def onBarrePressed(self, fret: int, string_coords: tuple[int, int]):
-        if fret in self.barre_items and string_coords in self.barre_items[fret]:
-            self.scene().removeItem(self.barre_items[fret][string_coords])
-            del self.barre_items[fret][string_coords]
-            if len(self.barre_items[fret]) == 0:
-                del self.barre_items[fret]
-
-    @pyqtSlot(int, int)
-    def onExistingNotePressed(self, fret: int, string: int):
+    def removeSingleNote(self, note_coords: tuple[int, int]):
+        fret, string = note_coords
         if (fret, string) in self.note_items:
             self.scene().removeItem(self.note_items[(fret, string)])
             del self.note_items[(fret, string)]
+
+    @pyqtSlot(int, int)
+    def onNewNotePressed(self, fret: int, string: int):
+        self.note_coord = (fret, string)
+        self.addSingleNote(self.note_coord)
+
+    @pyqtSlot(int, tuple)
+    def onBarrePressed(self, fret: int, string_coords: tuple[int, int]):
+        self.removeBarreItem(fret, string_coords)
+
+    @pyqtSlot(int, int)
+    def onExistingNotePressed(self, fret: int, string: int):
+        self.removeSingleNote((fret, string))
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         """
@@ -246,14 +250,13 @@ class FretboardBoard(QtWidgets.QGraphicsView):
                     self.curr_barre_item = None
                     self.barre_string_coord = None
                     self.barre_fret = None
-                self.onNewNotePressed(fret, string)
+                self.addSingleNote((fret, string))
             elif self.note_coord:
                 # We're in barre mode: check if we need to create one,  extend it or shrink it
                 # Extension or reduction only happens if the string index is different than
                 # the last barre string.
                 if self.barre_string_coord is None or string != self.barre_string_coord[1]:
                     self.barre_fret = self.note_coord[0]
-                    target_coord = (self.barre_fret, string)
                     self.barre_string_coord = (
                         self.note_coord[1], string)
 
@@ -273,77 +276,86 @@ class FretboardBoard(QtWidgets.QGraphicsView):
                                 coords_to_delete += [(note_fret, note_string)]
 
                     for coord in coords_to_delete:
-                        self.scene().removeItem(self.note_items[coord])
-                        del self.note_items[coord]
+                        self.removeSingleNote(coord)
 
-                    x0 = self.note_coord[1]
-                    x1 = target_coord[1]
-                    if x1 >= x0:
-                        # positive barre (from cursor original initial click, dragging to the right)
-                        x = x0 * self.FRETWIDTH - self.BARRE_THICKNESS / 2
-                        w = (x1 - x0) * self.FRETWIDTH + self.BARRE_THICKNESS
-                    else:
-                        # negative barre (from cursor original initial click, dragging to the left)
-                        x = x1 * self.FRETWIDTH - self.BARRE_THICKNESS / 2
-                        w = (x0 - x1) * self.FRETWIDTH + self.BARRE_THICKNESS
-
-                    y = self.note_coord[0] * self.FRETHEIGHT - \
-                        self.FRETHEIGHT / 2 - self.BARRE_THICKNESS / 2
+                    (x, y, w, h) = self.calculateBarreRect(
+                        fret, self.barre_string_coord)
 
                     self.curr_barre_item = FretboardBarreItem(
-                        self.barre_fret, self.barre_string_coord, x, y, w, self.BARRE_THICKNESS
+                        self.barre_fret, self.barre_string_coord, x, y, w, h
                     )
 
                     self.scene().addItem(self.curr_barre_item)
 
         return super().mouseMoveEvent(event)
 
+    def removeBarreItem(self, fret: int, string_coords: tuple[int, int]):
+        if fret in self.barre_items and string_coords in self.barre_items[fret]:
+            self.scene().removeItem(self.barre_items[fret][string_coords])
+            del self.barre_items[fret][string_coords]
+
+    def calculateBarreRect(self, fret: int, string_coords: tuple[int, int]):
+        x0, x1 = string_coords
+        if x1 >= x0:
+            # positive barre (from cursor original initial click, dragging to the right)
+            x = x0 * self.FRETWIDTH - self.BARRE_THICKNESS / 2
+            w = (x1 - x0) * self.FRETWIDTH + self.BARRE_THICKNESS
+        else:
+            # negative barre (from cursor original initial click, dragging to the left)
+            x = x1 * self.FRETWIDTH - self.BARRE_THICKNESS / 2
+            w = (x0 - x1) * self.FRETWIDTH + self.BARRE_THICKNESS
+
+        y = fret * self.FRETHEIGHT - \
+            self.FRETHEIGHT / 2 - self.BARRE_THICKNESS / 2
+
+        return (x, y, w, self.BARRE_THICKNESS)
+
+    def addBarreItem(self, fret: int, string_coord: tuple[int, int], item: FretboardBarreItem):
+        # make sure the string coordinates are sorted from left to right
+        string_coord = tuple(sorted(string_coord))
+        if fret not in self.barre_items:
+            # first barre in fret, add it
+            self.barre_items[fret] = {
+                string_coord: item}
+        else:
+            # check if there are overlapping barres on the same fret and keep track of
+            # them for later deletion
+            coords_to_delete = []
+            for coord in self.barre_items[fret]:
+                # sort the barres string coord tuples so that they ordered from left to right
+                coord_pair = sorted(
+                    [string_coord, coord])
+                # check for overlap or if they are glued to each other
+                overlap = coord_pair[1][0] - coord_pair[0][1]
+                if overlap <= 1:
+                    # no need to max for leftmost with coord_pair[1][0], as it's been sorted above
+                    leftmost_string = coord_pair[0][0]
+                    rightmost_string = max(
+                        coord_pair[1][1], coord_pair[0][1])
+                    string_coord = (
+                        leftmost_string, rightmost_string)
+                    coords_to_delete += [coord]
+
+            # we should add the overlapped barre if we deleted the overlapped ones
+            if len(coords_to_delete) > 0:
+                for coord in coords_to_delete:
+                    self.removeBarreItem(fret, coord)
+
+                self.scene().removeItem(item)
+
+                (x, y, w, h) = self.calculateBarreRect(fret, string_coord)
+                item_to_add = FretboardBarreItem(
+                    fret, string_coord, x, y, w, h
+                )
+                self.barre_items[fret][string_coord] = item_to_add
+                self.scene().addItem(item_to_add)
+            else:
+                self.barre_items[fret][string_coord] = item
+
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.curr_barre_item and self.barre_string_coord and self.barre_fret:
-            self.barre_string_coord = tuple(sorted(self.barre_string_coord))
-            if self.barre_fret not in self.barre_items:
-                # first barre in fret, add it
-                self.barre_items[self.barre_fret] = {
-                    self.barre_string_coord: self.curr_barre_item}
-            else:
-                # check if there is an overlapping barre on the same fret and combine them
-                coords_to_delete = []
-                for string_coord in self.barre_items[self.barre_fret]:
-                    # TODO: fix bug when overlapping with a larger width
-                    coord_pair = sorted(
-                        [string_coord, self.barre_string_coord])
-                    overlap = coord_pair[1][0] - coord_pair[0][1]
-                    if overlap <= 1:
-                        # no need to max with coord_pair[1][0], as it's been sorted above
-                        leftmost_string = coord_pair[0][0]
-                        rightmost_string = max(
-                            coord_pair[1][1], coord_pair[0][1])
-                        self.barre_string_coord = (
-                            leftmost_string, rightmost_string)
-                        coords_to_delete += [string_coord]
-
-                # we should add the overlepped barre if we deleted the overlapped ones
-                if len(coords_to_delete) > 0:
-                    for coord in coords_to_delete:
-                        self.scene().removeItem(
-                            self.barre_items[self.barre_fret][coord])
-                        del self.barre_items[self.barre_fret][coord]
-
-                    self.scene().removeItem(self.curr_barre_item)
-
-                    x0, x1 = self.barre_string_coord
-                    x = x0 * self.FRETWIDTH - self.NOTEDIAMETER / 2
-                    w = (x1 - x0) * self.FRETWIDTH + self.NOTEDIAMETER
-
-                    y = self.barre_fret * self.FRETHEIGHT - \
-                        self.FRETHEIGHT / 2 - self.NOTEDIAMETER / 2
-                    item_to_add = FretboardBarreItem(
-                        self.barre_fret, self.barre_string_coord, x, y, w, self.NOTEDIAMETER
-                    )
-                    self.barre_items[self.barre_fret][self.barre_string_coord] = item_to_add
-                    self.scene().addItem(item_to_add)
-                else:
-                    self.barre_items[self.barre_fret][self.barre_string_coord] = self.curr_barre_item
+            self.addBarreItem(
+                self.barre_fret, self.barre_string_coord, self.curr_barre_item)
 
         self.barre_fret = None
         self.barre_string_coord = None
