@@ -168,7 +168,6 @@ class FretboardView(QtWidgets.QGraphicsView):
         self.note_pressed_coord = None
         self.moving_barre_string_coord = None
         self.moving_barre_fret = None
-        self.string_range = (num_frets+1, -1)
 
         # set up scene
         scene = MyGraphicsScene(QtCore.QRectF(
@@ -334,7 +333,13 @@ class FretboardView(QtWidgets.QGraphicsView):
         for fret in list(self.barre_items.keys()):
             for coord in list(fret.keys()):
                 self.removeBarreItem(fret, coord)
-        self.string_range = (self.m_num_frets+1, -1)
+        self.note_items = {}
+        self.barre_items = {}
+        self.moving_barre_item = None
+        self.note_pressed_coord = None
+        self.moving_barre_string_coord = None
+        self.moving_barre_fret = None
+        self.updateActiveStrings()
 
     def updateActiveStrings(self):
         active_strings = set()
