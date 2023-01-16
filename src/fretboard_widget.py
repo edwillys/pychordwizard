@@ -118,7 +118,7 @@ class FretboardRectItem(QGraphicsRectItem):
         self.m_pressed = True
         fret, string = self.calculateFretString(event.pos())
         self.scene().new_note_pressed.emit(fret, string)
-        super(FretboardRectItem, self).mousePressEvent(event)
+        super().mousePressEvent(event)
         event.accept()
 
 
@@ -128,13 +128,13 @@ class MyGraphicsScene(QGraphicsScene):
     new_note_pressed = pyqtSignal(int, int)
 
 
-class FretboardBoard(QtWidgets.QGraphicsView):
+class FretboardView(QtWidgets.QGraphicsView):
     FRETWIDTH, FRETHEIGHT = 20, 30
     NOTEDIAMETER = 7
     BARRE_THICKNESS = NOTEDIAMETER
 
     def __init__(self, num_frets=6, num_strings=6, parent=None):
-        super(FretboardBoard, self).__init__(parent)
+        super().__init__(parent)
         self.initialize()
 
         self.m_num_frets = num_frets
@@ -167,68 +167,12 @@ class FretboardBoard(QtWidgets.QGraphicsView):
         self.scene().existing_note_pressed.connect(self.onExistingNotePressed)
         self.scene().new_note_pressed.connect(self.onNewNotePressed)
 
-    def initialize(self):
-        self.setAttribute(QtCore.Qt.WA_InputMethodEnabled, False)
-        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.setCacheMode(QtWidgets.QGraphicsView.CacheBackground)
-        self.setViewportUpdateMode(
-            QtWidgets.QGraphicsView.MinimalViewportUpdate)
-        self.setRenderHints(QtGui.QPainter.Antialiasing |
-                            QtGui.QPainter.TextAntialiasing |
-                            QtGui.QPainter.SmoothPixmapTransform)
-        self.setOptimizationFlag(QtWidgets.QGraphicsView.DontClipPainter, True)
-        self.setOptimizationFlag(
-            QtWidgets.QGraphicsView.DontSavePainterState, True)
-        self.setOptimizationFlag(
-            QtWidgets.QGraphicsView.DontAdjustForAntialiasing, True)
-        self.setBackgroundBrush(QtWidgets.QApplication.palette().base())
-
     def resizeEvent(self, event):
-        super(FretboardBoard, self).resizeEvent(event)
+        super().resizeEvent(event)
         self.fitInView(self.scene().sceneRect(), QtCore.Qt.KeepAspectRatio)
 
     def sizeHint(self):
         return self.mapFromScene(self.sceneRect()).boundingRect().size()
-
-    def setOpenTop(self, enable: bool):
-        for rect in self.fret_rect[0]:
-            rect.m_open_top = enable
-
-    def setOpenBottom(self, enable: bool):
-        for rect in self.fret_rect[-1]:
-            rect.m_open_bottom = enable
-
-    def addSingleNote(self, note_coords: tuple[int, int]):
-        if note_coords not in self.note_items:
-            fret, string = note_coords
-            # create circle for the note and add to dictionary
-            x = string * self.FRETWIDTH - self.NOTEDIAMETER / 2
-            y = fret * self.FRETHEIGHT - self.FRETHEIGHT / 2 - self.NOTEDIAMETER / 2
-            note = FretboardNoteItem(
-                fret, string, x, y, self.NOTEDIAMETER, self.NOTEDIAMETER)
-            note.setBrush(QBrush(note.pen().color()))
-            self.scene().addItem(note)
-            self.note_items[(fret, string)] = note
-
-    def removeSingleNote(self, note_coords: tuple[int, int]):
-        fret, string = note_coords
-        if (fret, string) in self.note_items:
-            self.scene().removeItem(self.note_items[(fret, string)])
-            del self.note_items[(fret, string)]
-
-    @pyqtSlot(int, int)
-    def onNewNotePressed(self, fret: int, string: int):
-        self.note_coord = (fret, string)
-        self.addSingleNote(self.note_coord)
-
-    @pyqtSlot(int, tuple)
-    def onBarrePressed(self, fret: int, string_coords: tuple[int, int]):
-        self.removeBarreItem(fret, string_coords)
-
-    @pyqtSlot(int, int)
-    def onExistingNotePressed(self, fret: int, string: int):
-        self.removeSingleNote((fret, string))
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         """
@@ -288,26 +232,73 @@ class FretboardBoard(QtWidgets.QGraphicsView):
 
         return super().mouseMoveEvent(event)
 
-    def removeBarreItem(self, fret: int, string_coords: tuple[int, int]):
-        if fret in self.barre_items and string_coords in self.barre_items[fret]:
-            self.scene().removeItem(self.barre_items[fret][string_coords])
-            del self.barre_items[fret][string_coords]
+    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
+        if self.curr_barre_item and self.barre_string_coord and self.barre_fret:
+            self.addBarreItem(
+                self.barre_fret, self.barre_string_coord, self.curr_barre_item)
 
-    def calculateBarreRect(self, fret: int, string_coords: tuple[int, int]):
-        x0, x1 = string_coords
-        if x1 >= x0:
-            # positive barre (from cursor original initial click, dragging to the right)
-            x = x0 * self.FRETWIDTH - self.BARRE_THICKNESS / 2
-            w = (x1 - x0) * self.FRETWIDTH + self.BARRE_THICKNESS
-        else:
-            # negative barre (from cursor original initial click, dragging to the left)
-            x = x1 * self.FRETWIDTH - self.BARRE_THICKNESS / 2
-            w = (x0 - x1) * self.FRETWIDTH + self.BARRE_THICKNESS
+        self.barre_fret = None
+        self.barre_string_coord = None
+        self.curr_barre_item = None
+        self.note_coord = None
 
-        y = fret * self.FRETHEIGHT - \
-            self.FRETHEIGHT / 2 - self.BARRE_THICKNESS / 2
+        return super().mouseReleaseEvent(event)
 
-        return (x, y, w, self.BARRE_THICKNESS)
+    @pyqtSlot(int, int)
+    def onNewNotePressed(self, fret: int, string: int):
+        self.note_coord = (fret, string)
+        self.addSingleNote(self.note_coord)
+
+    @pyqtSlot(int, tuple)
+    def onBarrePressed(self, fret: int, string_coords: tuple[int, int]):
+        self.removeBarreItem(fret, string_coords)
+
+    @pyqtSlot(int, int)
+    def onExistingNotePressed(self, fret: int, string: int):
+        self.removeSingleNote((fret, string))
+
+    def initialize(self):
+        self.setAttribute(QtCore.Qt.WA_InputMethodEnabled, False)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setCacheMode(QtWidgets.QGraphicsView.CacheBackground)
+        self.setViewportUpdateMode(
+            QtWidgets.QGraphicsView.MinimalViewportUpdate)
+        self.setRenderHints(QtGui.QPainter.Antialiasing |
+                            QtGui.QPainter.TextAntialiasing |
+                            QtGui.QPainter.SmoothPixmapTransform)
+        self.setOptimizationFlag(QtWidgets.QGraphicsView.DontClipPainter, True)
+        self.setOptimizationFlag(
+            QtWidgets.QGraphicsView.DontSavePainterState, True)
+        self.setOptimizationFlag(
+            QtWidgets.QGraphicsView.DontAdjustForAntialiasing, True)
+        self.setBackgroundBrush(QtWidgets.QApplication.palette().base())
+
+    def setOpenTop(self, enable: bool):
+        for rect in self.fret_rect[0]:
+            rect.m_open_top = enable
+
+    def setOpenBottom(self, enable: bool):
+        for rect in self.fret_rect[-1]:
+            rect.m_open_bottom = enable
+
+    def addSingleNote(self, note_coords: tuple[int, int]):
+        if note_coords not in self.note_items:
+            fret, string = note_coords
+            # create circle for the note and add to dictionary
+            x = string * self.FRETWIDTH - self.NOTEDIAMETER / 2
+            y = fret * self.FRETHEIGHT - self.FRETHEIGHT / 2 - self.NOTEDIAMETER / 2
+            note = FretboardNoteItem(
+                fret, string, x, y, self.NOTEDIAMETER, self.NOTEDIAMETER)
+            note.setBrush(QBrush(note.pen().color()))
+            self.scene().addItem(note)
+            self.note_items[(fret, string)] = note
+
+    def removeSingleNote(self, note_coords: tuple[int, int]):
+        fret, string = note_coords
+        if (fret, string) in self.note_items:
+            self.scene().removeItem(self.note_items[(fret, string)])
+            del self.note_items[(fret, string)]
 
     def addBarreItem(self, fret: int, string_coord: tuple[int, int], item: FretboardBarreItem):
         # make sure the string coordinates are sorted from left to right
@@ -350,18 +341,28 @@ class FretboardBoard(QtWidgets.QGraphicsView):
                 self.scene().addItem(item_to_add)
             else:
                 self.barre_items[fret][string_coord] = item
+    
+    def removeBarreItem(self, fret: int, string_coords: tuple[int, int]):
+        if fret in self.barre_items and string_coords in self.barre_items[fret]:
+            self.scene().removeItem(self.barre_items[fret][string_coords])
+            del self.barre_items[fret][string_coords]
 
-    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
-        if self.curr_barre_item and self.barre_string_coord and self.barre_fret:
-            self.addBarreItem(
-                self.barre_fret, self.barre_string_coord, self.curr_barre_item)
+    def calculateBarreRect(self, fret: int, string_coords: tuple[int, int]):
+        x0, x1 = string_coords
+        if x1 >= x0:
+            # positive barre (from cursor original initial click, dragging to the right)
+            x = x0 * self.FRETWIDTH - self.BARRE_THICKNESS / 2
+            w = (x1 - x0) * self.FRETWIDTH + self.BARRE_THICKNESS
+        else:
+            # negative barre (from cursor original initial click, dragging to the left)
+            x = x1 * self.FRETWIDTH - self.BARRE_THICKNESS / 2
+            w = (x0 - x1) * self.FRETWIDTH + self.BARRE_THICKNESS
 
-        self.barre_fret = None
-        self.barre_string_coord = None
-        self.curr_barre_item = None
-        self.note_coord = None
+        y = fret * self.FRETHEIGHT - \
+            self.FRETHEIGHT / 2 - self.BARRE_THICKNESS / 2
 
-        return super().mouseReleaseEvent(event)
+        return (x, y, w, self.BARRE_THICKNESS)
+
 
 
 if __name__ == '__main__':
@@ -372,7 +373,7 @@ if __name__ == '__main__':
     lay = QtWidgets.QVBoxLayout(w)
     lay.addWidget(QtWidgets.QLabel("Fretboard",
                   alignment=QtCore.Qt.AlignCenter))
-    fretboard = FretboardBoard()
+    fretboard = FretboardView()
     # fretboard.setOpenTop(True)
     fretboard.setOpenBottom(True)
     lay.addWidget(fretboard)
