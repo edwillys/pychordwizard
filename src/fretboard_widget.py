@@ -533,8 +533,6 @@ if __name__ == '__main__':
     app.setStyle('fusion')
     w = QtWidgets.QWidget()
     lay = QtWidgets.QVBoxLayout(w)
-    lay.addWidget(QtWidgets.QLabel("Fretboard",
-                  alignment=QtCore.Qt.AlignCenter))
     fretboard = FretboardView()
     fretboard.setOpenBottom(True)
     lay.addWidget(fretboard)
