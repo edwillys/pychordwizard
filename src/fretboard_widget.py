@@ -1,6 +1,6 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsEllipseItem, \
-    QGraphicsSceneMouseEvent, QGraphicsTextItem, QGraphicsLineItem, QAbstractGraphicsShapeItem
+    QGraphicsSceneMouseEvent, QGraphicsTextItem, QGraphicsLineItem
 from PyQt5.QtCore import QRectF, QLineF, QPointF, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QPen, QLinearGradient, QColor, QBrush, QTransform, QFont
 
@@ -30,24 +30,35 @@ class FretboardBarreItem(QGraphicsRectItem):
         super().mousePressEvent(event)
         event.accept()
 
+    def shape(self) -> QtGui.QPainterPath:
+        path = super().shape()
+        # TODO: why doesn't this work?
+        cl, cr = self.getRoundingEllipseCenters()
+        path.addEllipse(cl, self.CIRCLE_SIZE / 2., self.CIRCLE_SIZE / 2.)
+        path.addEllipse(cr, self.CIRCLE_SIZE / 2., self.CIRCLE_SIZE / 2.)
+        path.setFillRule(QtCore.Qt.WindingFill)
+        return path
+
     def paint(self, painter: QtGui.QPainter, option, widget) -> None:
         painter.setBrush(QtCore.Qt.black)
         painter.setPen(QtCore.Qt.black)
         # main rectangle
         painter.drawRect(self.rect())
-        # left ellipse
-        bl = self.rect().bottomLeft()
-        tl = self.rect().topLeft()
-        center = QPointF(bl.x(), (bl.y() + tl.y()) / 2.)
-        painter.drawEllipse(center, self.CIRCLE_SIZE /
-                            2., self.CIRCLE_SIZE / 2.)
-        # right ellipse
-        br = self.rect().bottomRight()
-        tr = self.rect().topRight()
-        center = QPointF(br.x(), (br.y() + tr.y()) / 2.)
-        painter.drawEllipse(center, self.CIRCLE_SIZE /
-                            2., self.CIRCLE_SIZE / 2.)
+        # left and right rounding corner ellipsi
+        cl, cr = self.getRoundingEllipseCenters()
+        painter.drawEllipse(cl, self.CIRCLE_SIZE / 2., self.CIRCLE_SIZE / 2.)
+        painter.drawEllipse(cr, self.CIRCLE_SIZE / 2., self.CIRCLE_SIZE / 2.)
         self.scene().update()
+
+    def getRoundingEllipseCenters(self):
+        rect = self.rect()
+        bl = rect.bottomLeft()
+        tl = rect.topLeft()
+        br = rect.bottomRight()
+        tr = rect.topRight()
+        cl = QPointF(bl.x(), (bl.y() + tl.y()) / 2.)
+        cr = QPointF(br.x(), (br.y() + tr.y()) / 2.)
+        return (cl, cr)
 
 
 class FretboardRectItem(QGraphicsRectItem):
@@ -156,12 +167,12 @@ class FretboardView(QtWidgets.QGraphicsView):
     BARRE_THICKNESS = NOTEDIAMETER
     STRING_BTN_SITZE = 5
 
-    def __init__(self, num_frets=6, num_strings=6, fret_start=0, parent=None):
+    def __init__(self, num_frets=6, tuning: list[str] = ["E", "A", "D", "G", "B", "E"], fret_start=0, parent=None):
         super().__init__(parent)
-        self.initialize()
+        # self.initialize()
 
-        self.m_num_frets = num_frets
-        self.m_num_strings = num_strings
+        self.num_frets = num_frets
+        self.num_strings = len(tuning)
         self.note_items = {}
         self.barre_items = {}
         self.moving_barre_item = None
@@ -170,16 +181,49 @@ class FretboardView(QtWidgets.QGraphicsView):
         self.moving_barre_fret = None
 
         # set up scene
-        scene = MyGraphicsScene(QtCore.QRectF(
-            0, 0, self.FRETWIDTH * self.m_num_frets, self.FRETHEIGHT * self.m_num_strings), self)
+        scene = MyGraphicsScene()
         self.setScene(scene)
 
+        # tuning
+        self.tuning_items = [
+            QGraphicsTextItem(string_name)
+            for string_name in tuning
+        ]
+        for i, ti in enumerate(self.tuning_items):
+            ti.setFont(QFont("Courier New", 6))
+            ti.setPos(
+                i * self.FRETWIDTH - 5.,
+                0.
+            )
+            self.scene().addItem(ti)
+
+        self.y_offset = self.tuning_items[0].boundingRect().height()
+
+        # nutmeg
+        self.nutmeg_item = QGraphicsLineItem(
+            0.,
+            self.y_offset,
+            (self.num_strings - 1) * self.FRETWIDTH,
+            self.y_offset
+        )
+        self.nutmeg_item.setZValue(1)
+        self.nutmeg_item.setPen(QPen(QtCore.Qt.black, 3.))
+        self.scene().addItem(self.nutmeg_item)
+
         # initialize frets and strings
-        self.fret_rect = [
-            [FretboardRectItem(i+1, (j, j+1),
-                               QRectF(j * self.FRETWIDTH, i * self.FRETHEIGHT, self.FRETWIDTH, self.FRETHEIGHT))
-                for j in range(num_strings-1)
-             ] for i in range(num_frets-1)
+        self.fret_rect = [[
+            FretboardRectItem(
+                i+1,
+                (j, j+1),
+                QRectF(
+                    j * self.FRETWIDTH,
+                    i * self.FRETHEIGHT + self.y_offset,
+                    self.FRETWIDTH,
+                    self.FRETHEIGHT
+                )
+            )
+            for j in range(self.num_strings-1)]
+            for i in range(num_frets-1)
         ]
         for frets in self.fret_rect:
             for rect in frets:
@@ -189,27 +233,22 @@ class FretboardView(QtWidgets.QGraphicsView):
         # fret label
         self.fret_text_item = QGraphicsTextItem()
         self.fret_text_item.setDefaultTextColor(QtCore.Qt.darkGray)
-        self.fret_text_item.setPos(QPointF(-20, 0))
+        self.fret_text_item.setPos(QPointF(-20, self.y_offset))
         self.fret_text_item.setFont(QFont("Courier New", 7, weight=100))
         self.scene().addItem(self.fret_text_item)
-
-        # nutmeg
-        self.nutmeg_item = QGraphicsLineItem(
-            0., 0., (self.m_num_strings - 1) * self.FRETWIDTH, 0.)
-        self.nutmeg_item.setPen(QPen(QtCore.Qt.black, 3.))
-        self.scene().addItem(self.nutmeg_item)
 
         self.setFretStart(fret_start)
 
         # string buttons
         self.string_button_items = [
-            StringButtonItem(i * self.FRETWIDTH - self.STRING_BTN_SITZE / 2.,
-                             self.FRETHEIGHT *
-                             (self.m_num_frets - 1) +
-                             self.STRING_BTN_SITZE / 2. + 5.,
-                             self.STRING_BTN_SITZE,
-                             self.STRING_BTN_SITZE)
-            for i in range(self.m_num_strings)
+            StringButtonItem(
+                i * self.FRETWIDTH - self.STRING_BTN_SITZE / 2.,
+                self.y_offset + self.FRETHEIGHT *
+                (self.num_frets - 1) + self.STRING_BTN_SITZE / 2. + 5.,
+                self.STRING_BTN_SITZE,
+                self.STRING_BTN_SITZE
+            )
+            for i in range(self.num_strings)
         ]
         for str_btn in self.string_button_items:
             self.scene().addItem(str_btn)
@@ -232,13 +271,15 @@ class FretboardView(QtWidgets.QGraphicsView):
         """
         # barre should only be drawn if a the cursor is moving over the fretboard
         # or the barre itself. Thus, we check the intersected item
+        if not self.note_pressed_coord:
+            return
         sp = self.mapToScene(event.pos())
         item = self.scene().itemAt(sp, QTransform())
         if item and (isinstance(item, FretboardRectItem) or isinstance(item, FretboardBarreItem)):
-            fret = 1 + int(sp.y() / self.FRETHEIGHT)
+            np_fret, np_string = self.note_pressed_coord
             string = int((sp.x() + self.FRETWIDTH / 2) / self.FRETWIDTH)
 
-            if (fret, string) == self.note_pressed_coord:
+            if string == np_string:
                 # the barre is reduced to a single note: delete the current barre if any
                 # and generate a note
                 if self.moving_barre_item:
@@ -246,15 +287,15 @@ class FretboardView(QtWidgets.QGraphicsView):
                     self.moving_barre_item = None
                     self.moving_barre_string_coord = None
                     self.moving_barre_fret = None
-                self.addSingleNote((fret, string))
-            elif self.note_pressed_coord:
+                self.addSingleNote((np_fret, string))
+            else:
                 # We're in barre mode: check if we need to create one,  extend it or shrink it
                 # Extension or reduction only happens if the string index is different than
                 # the last barre string.
-                if self.moving_barre_string_coord is None or string != self.moving_barre_string_coord[1]:
-                    self.moving_barre_fret = self.note_pressed_coord[0]
-                    self.moving_barre_string_coord = (
-                        self.note_pressed_coord[1], string)
+                string_coord = (np_string, string)
+                if self.moving_barre_string_coord != string_coord:
+                    self.moving_barre_fret = np_fret
+                    self.moving_barre_string_coord = string_coord
 
                     # we delete the old barre before generating the new one
                     if self.moving_barre_item:
@@ -264,20 +305,21 @@ class FretboardView(QtWidgets.QGraphicsView):
                     coords_to_delete = []
                     leftmost_string, rightmost_string = sorted(
                         self.moving_barre_string_coord)
-                    for note_fret, note_string in self.note_items:
+                    for note_fret, np_string in self.note_items:
                         if note_fret == self.moving_barre_fret and \
-                                note_string >= leftmost_string and \
-                                note_string <= rightmost_string:
-                            coords_to_delete += [(note_fret, note_string)]
+                                np_string >= leftmost_string and \
+                                np_string <= rightmost_string:
+                            coords_to_delete += [(note_fret, np_string)]
 
                     for coord in coords_to_delete:
                         self.removeSingleNote(coord)
 
                     (x, y, w, h) = self.calculateBarreRect(
-                        fret, self.moving_barre_string_coord)
+                        np_fret, self.moving_barre_string_coord
+                    )
 
                     self.moving_barre_item = FretboardBarreItem(
-                        self.moving_barre_fret, self.moving_barre_string_coord, x, y, w, h
+                        self.moving_barre_fret, self.moving_barre_string_coord, x, y + self.y_offset, w, h
                     )
 
                     self.scene().addItem(self.moving_barre_item)
@@ -375,13 +417,25 @@ class FretboardView(QtWidgets.QGraphicsView):
             rect.m_open_bottom = enable
 
     def addSingleNote(self, note_coords: tuple[int, int]):
+        # check if it doesn't exist already
         if note_coords not in self.note_items:
             fret, string = note_coords
+            # check if it is not already contained in a barre
+            if fret in self.barre_items:
+                for sleft, sright in self.barre_items[fret]:
+                    if string >= sleft or string <= sright:
+                        return
             # create circle for the note and add to dictionary
             x = string * self.FRETWIDTH - self.NOTEDIAMETER / 2
             y = fret * self.FRETHEIGHT - self.FRETHEIGHT / 2 - self.NOTEDIAMETER / 2
             note = FretboardNoteItem(
-                fret, string, x, y, self.NOTEDIAMETER, self.NOTEDIAMETER)
+                fret,
+                string,
+                x,
+                y + self.y_offset,
+                self.NOTEDIAMETER,
+                self.NOTEDIAMETER
+            )
             note.setBrush(QBrush(note.pen().color()))
             self.scene().addItem(note)
             self.note_items[(fret, string)] = note
@@ -428,7 +482,7 @@ class FretboardView(QtWidgets.QGraphicsView):
 
                 (x, y, w, h) = self.calculateBarreRect(fret, string_coord)
                 item_to_add = FretboardBarreItem(
-                    fret, string_coord, x, y, w, h
+                    fret, string_coord, x, y + self.y_offset, w, h
                 )
                 self.barre_items[fret][string_coord] = item_to_add
                 self.scene().addItem(item_to_add)
@@ -443,18 +497,10 @@ class FretboardView(QtWidgets.QGraphicsView):
             self.updateActiveStrings()
 
     def calculateBarreRect(self, fret: int, string_coords: tuple[int, int]):
-        x0, x1 = string_coords
-        if x1 >= x0:
-            # positive barre (from cursor original initial click, dragging to the right)
-            x = x0 * self.FRETWIDTH - self.BARRE_THICKNESS / 2
-            w = (x1 - x0) * self.FRETWIDTH + self.BARRE_THICKNESS
-        else:
-            # negative barre (from cursor original initial click, dragging to the left)
-            x = x1 * self.FRETWIDTH - self.BARRE_THICKNESS / 2
-            w = (x0 - x1) * self.FRETWIDTH + self.BARRE_THICKNESS
-
-        y = fret * self.FRETHEIGHT - \
-            self.FRETHEIGHT / 2 - self.BARRE_THICKNESS / 2
+        x0, x1 = sorted(string_coords)
+        x = x0 * self.FRETWIDTH
+        w = (x1 - x0) * self.FRETWIDTH
+        y = fret * self.FRETHEIGHT - self.FRETHEIGHT / 2 - self.BARRE_THICKNESS / 2
 
         return (x, y, w, self.BARRE_THICKNESS)
 
