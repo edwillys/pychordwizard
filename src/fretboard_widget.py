@@ -164,10 +164,11 @@ class StringButtonItem(QGraphicsRectItem):
         return super().mousePressEvent(event)
 
 
-class MyGraphicsScene(QGraphicsScene):
+class FretboardScene(QGraphicsScene):
     barre_pressed = pyqtSignal(int, tuple)
     existing_note_pressed = pyqtSignal(int, int)
     new_note_pressed = pyqtSignal(int, int)
+    notes_changed = pyqtSignal(dict)
 
 
 class FretboardView(QtWidgets.QGraphicsView):
@@ -184,13 +185,14 @@ class FretboardView(QtWidgets.QGraphicsView):
         self.num_strings = len(tuning)
         self.note_items = {}
         self.barre_items = {}
+        self.active = {}
         self.moving_barre_item = None
         self.note_pressed_coord = None
         self.moving_barre_string_coord = None
         self.moving_barre_fret = None
 
         # set up scene
-        scene = MyGraphicsScene()
+        scene = FretboardScene()
         self.setScene(scene)
 
         # tuning
@@ -326,8 +328,8 @@ class FretboardView(QtWidgets.QGraphicsView):
                         self.moving_barre_string_coord)
                     for note_fret, np_string in self.note_items:
                         if (note_fret == self.moving_barre_fret or note_fret == 0) \
-                            and np_string >= leftmost_string \
-                            and np_string <= rightmost_string:
+                                and np_string >= leftmost_string \
+                                and np_string <= rightmost_string:
                             coords_to_delete += [(note_fret, np_string)]
 
                     for coord in coords_to_delete:
@@ -342,7 +344,7 @@ class FretboardView(QtWidgets.QGraphicsView):
                     )
 
                     self.scene().addItem(self.moving_barre_item)
-                    self.updateActiveStrings()
+                    self.updateActiveStringsAndNotes()
 
         return super().mouseMoveEvent(event)
 
@@ -400,25 +402,42 @@ class FretboardView(QtWidgets.QGraphicsView):
         self.note_pressed_coord = None
         self.moving_barre_string_coord = None
         self.moving_barre_fret = None
-        self.updateActiveStrings()
+        self.updateActiveStringsAndNotes()
 
-    def updateActiveStrings(self):
+    def updateActiveStringsAndNotes(self):
         active_strings = set()
+        active_notes = {}
 
-        for _, string in self.note_items:
+        for fret, string in self.note_items:
             active_strings.add(string)
+            if string not in active_notes:
+                active_notes[string] = fret
+            elif fret > active_notes[string]:
+                active_notes[string] = fret
 
-        for _, string_coords in self.barre_items.items():
+        for fret, string_coords in self.barre_items.items():
             for left, right in string_coords:
                 for string in range(left, right + 1):
                     active_strings.add(string)
+                    if string not in active_notes:
+                        active_notes[string] = fret
+                    elif fret > active_notes[string]:
+                        active_notes[string] = fret
 
         if self.moving_barre_string_coord:
             left, right = sorted(self.moving_barre_string_coord)
             for string in range(left, right + 1):
                 active_strings.add(string)
+                if string not in active_notes:
+                    active_notes[string] = self.moving_barre_fret
+                elif self.moving_barre_fret > active_notes[string]:
+                    active_notes[string] = self.moving_barre_fret
 
         active_strings = set(sorted(active_strings))
+
+        if active_notes != self.active:
+            self.scene().notes_changed.emit(active_notes)
+            self.active = active_notes
 
         for i, sbi in enumerate(self.string_button_items):
             sbi.is_active = i in active_strings
@@ -443,7 +462,7 @@ class FretboardView(QtWidgets.QGraphicsView):
                 # check if it is not already contained in a barre
                 if fret in self.barre_items:
                     for sleft, sright in self.barre_items[fret]:
-                        if string >= sleft or string <= sright:
+                        if string >= sleft and string <= sright:
                             return
                 # create circle for the note and add to dictionary
                 x = string * self.FRETWIDTH - self.NOTEDIAMETER / 2
@@ -464,8 +483,7 @@ class FretboardView(QtWidgets.QGraphicsView):
             else:
                 # adds a dummy value to the dict for tracking
                 self.note_items[(fret, string)] = None
-
-            self.updateActiveStrings()
+            self.updateActiveStringsAndNotes()
 
     def removeSingleNote(self, note_coords: tuple[int, int]):
         fret, string = note_coords
@@ -474,7 +492,7 @@ class FretboardView(QtWidgets.QGraphicsView):
                 # open strings are not added to the scene
                 self.scene().removeItem(self.note_items[(fret, string)])
             del self.note_items[(fret, string)]
-            self.updateActiveStrings()
+            self.updateActiveStringsAndNotes()
 
     def addBarreItem(self, fret: int, string_coord: tuple[int, int], item: FretboardBarreItem):
         # make sure the string coordinates are sorted from left to right
@@ -516,13 +534,13 @@ class FretboardView(QtWidgets.QGraphicsView):
                 self.scene().addItem(item_to_add)
             else:
                 self.barre_items[fret][string_coord] = item
-        self.updateActiveStrings()
+        self.updateActiveStringsAndNotes()
 
     def removeBarreItem(self, fret: int, string_coords: tuple[int, int]):
         if fret in self.barre_items and string_coords in self.barre_items[fret]:
             self.scene().removeItem(self.barre_items[fret][string_coords])
             del self.barre_items[fret][string_coords]
-            self.updateActiveStrings()
+            self.updateActiveStringsAndNotes()
 
     def calculateBarreRect(self, fret: int, string_coords: tuple[int, int]):
         x0, x1 = sorted(string_coords)
