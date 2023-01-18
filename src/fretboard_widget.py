@@ -64,7 +64,6 @@ class FretboardBarreItem(QGraphicsRectItem):
 class FretboardRectItem(QGraphicsRectItem):
     def __init__(self, fret: int, string: tuple[int, int], rect=QtCore.QRectF(), parent=None):
         QGraphicsRectItem.__init__(self, rect, parent)
-        self.m_pressed = False
         self.m_open_top = False
         self.m_open_bottom = False
         self.m_fret = fret
@@ -127,7 +126,6 @@ class FretboardRectItem(QGraphicsRectItem):
         return (fret, string)
 
     def mousePressEvent(self, event):
-        self.m_pressed = True
         fret, string = self.calculateFretString(event.pos())
         self.scene().new_note_pressed.emit(fret, string)
         super().mousePressEvent(event)
@@ -164,6 +162,34 @@ class StringButtonItem(QGraphicsRectItem):
         return super().mousePressEvent(event)
 
 
+class FretboardInlayItem(QGraphicsRectItem):
+    def __init__(self, x: float, y: float, w: float, h: float,
+                 fret: int, size: int = 5, style: str = "dot", parent=None):
+        QGraphicsRectItem.__init__(self, x, y, w, h, parent)
+        self.size = size
+        self.fret = fret
+        self.style = style
+
+    def paint(self, painter: QtGui.QPainter, option, widget) -> None:
+        norm_fret = self.fret % 13
+        rect = self.rect()
+        center = rect.center()
+        cx = center.x()
+        if self.style == "dot":
+            painter.setBrush(QtCore.Qt.lightGray)
+            painter.setPen(QtCore.Qt.gray)
+            if norm_fret == 3 or norm_fret == 5 or \
+                    norm_fret == 7 or norm_fret == 9:
+                painter.drawEllipse(center, self.size / 2., self.size / 2.)
+            elif norm_fret == 12:
+                offset = rect.width() / 4. - self.size
+                cl = QPointF(cx - offset, center.y())
+                cr = QPointF(cx + offset, center.y())
+                painter.drawEllipse(cl, self.size / 2., self.size / 2.)
+                painter.drawEllipse(cr, self.size / 2., self.size / 2.)
+        self.scene().update()
+
+
 class FretboardScene(QGraphicsScene):
     barre_pressed = pyqtSignal(int, tuple)
     existing_note_pressed = pyqtSignal(int, int)
@@ -172,12 +198,12 @@ class FretboardScene(QGraphicsScene):
 
 
 class FretboardView(QtWidgets.QGraphicsView):
-    FRETWIDTH, FRETHEIGHT = 20, 30
+    FRETWIDTH, FRETHEIGHT = 20, 25
     NOTEDIAMETER = 7
     BARRE_THICKNESS = NOTEDIAMETER
     STRING_BTN_SITZE = 5
 
-    def __init__(self, num_frets=6, tuning: list[str] = ["E", "A", "D", "G", "B", "E"], fret_start=0, parent=None):
+    def __init__(self, num_frets=12, tuning: list[str] = ["E", "A", "D", "G", "B", "E"], fret_start=0, parent=None):
         super().__init__(parent)
         # self.initialize()
 
@@ -203,7 +229,7 @@ class FretboardView(QtWidgets.QGraphicsView):
         for i, ti in enumerate(self.tuning_items):
             ti.setFont(QFont("Courier New", 6))
             ti.setPos(
-                i * self.FRETWIDTH - 5.,
+                i * self.FRETWIDTH - ti.boundingRect().width() / 2.,
                 0.
             )
             self.scene().addItem(ti)
@@ -234,11 +260,11 @@ class FretboardView(QtWidgets.QGraphicsView):
                 )
             )
             for j in range(self.num_strings-1)]
-            for i in range(num_frets-1)
+            for i in range(num_frets)
         ]
         for frets in self.fret_rect:
             for rect in frets:
-                rect.setPen(QPen(QtCore.Qt.gray, 1))
+                rect.setPen(QPen(QtCore.Qt.darkGray, 1))
                 self.scene().addItem(rect)
 
         # fret label
@@ -257,6 +283,21 @@ class FretboardView(QtWidgets.QGraphicsView):
         self.fret_text_dummy_item.setPos(fret_pos)
         self.scene().addItem(self.fret_text_dummy_item)
 
+        # inlays
+        self.inlays = [
+            FretboardInlayItem(
+                0.,
+                (fret - 1) * self.FRETHEIGHT + self.y_offset,
+                (self.num_strings - 1) * self.FRETWIDTH,
+                self.FRETHEIGHT,
+                fret
+            )
+            for fret in range(1, self.num_frets+1)
+        ]
+        for inlay in self.inlays:
+            inlay.setZValue(-1)
+            self.scene().addItem(inlay)
+
         self.setFretStart(fret_start)
 
         # string buttons
@@ -265,7 +306,7 @@ class FretboardView(QtWidgets.QGraphicsView):
                 i,
                 i * self.FRETWIDTH - self.STRING_BTN_SITZE / 2.,
                 self.y_offset + self.FRETHEIGHT *
-                (self.num_frets - 1) + self.STRING_BTN_SITZE / 2. + 5.,
+                self.num_frets + self.STRING_BTN_SITZE / 2. + 5.,
                 self.STRING_BTN_SITZE,
                 self.STRING_BTN_SITZE
             )
