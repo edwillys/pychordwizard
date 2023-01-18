@@ -135,10 +135,11 @@ class FretboardRectItem(QGraphicsRectItem):
 
 
 class StringButtonItem(QGraphicsRectItem):
-    def __init__(self, x: float, y: float, w: float, h: float, parent=None) -> None:
+    def __init__(self, string: int, x: float, y: float, w: float, h: float, parent=None) -> None:
         super().__init__(x, y, w, h, parent)
         self.is_root = False
         self.is_active = False
+        self.string = string
 
     def paint(self, painter: QtGui.QPainter, option, widget) -> None:
         painter.setPen(QtCore.Qt.darkGray)
@@ -153,6 +154,14 @@ class StringButtonItem(QGraphicsRectItem):
                 painter.setBrush(QBrush())
             painter.drawEllipse(rect)
         self.scene().update()
+
+    def mousePressEvent(self, event: 'QGraphicsSceneMouseEvent') -> None:
+        if self.is_active:
+            self.scene().existing_note_pressed.emit(0, self.string)
+        else:
+            self.scene().new_note_pressed.emit(0, self.string)
+        event.accept()
+        return super().mousePressEvent(event)
 
 
 class MyGraphicsScene(QGraphicsScene):
@@ -233,15 +242,25 @@ class FretboardView(QtWidgets.QGraphicsView):
         # fret label
         self.fret_text_item = QGraphicsTextItem()
         self.fret_text_item.setDefaultTextColor(QtCore.Qt.darkGray)
-        self.fret_text_item.setPos(QPointF(-20, self.y_offset))
-        self.fret_text_item.setFont(QFont("Courier New", 7, weight=100))
+        fret_pos = QPointF(-20, self.y_offset)
+        fret_font = QFont("Courier New", 7, weight=100)
+        self.fret_text_item.setPos(fret_pos)
+        self.fret_text_item.setFont(fret_font)
         self.scene().addItem(self.fret_text_item)
+        # to keep the symmetry
+        self.fret_text_dummy_item = QGraphicsTextItem()
+        self.fret_text_dummy_item.setVisible(False)
+        fret_pos.setX(self.FRETWIDTH * (self.num_strings - 1))
+        self.fret_text_dummy_item.setFont(fret_font)
+        self.fret_text_dummy_item.setPos(fret_pos)
+        self.scene().addItem(self.fret_text_dummy_item)
 
         self.setFretStart(fret_start)
 
         # string buttons
         self.string_button_items = [
             StringButtonItem(
+                i,
                 i * self.FRETWIDTH - self.STRING_BTN_SITZE / 2.,
                 self.y_offset + self.FRETHEIGHT *
                 (self.num_frets - 1) + self.STRING_BTN_SITZE / 2. + 5.,
@@ -306,9 +325,9 @@ class FretboardView(QtWidgets.QGraphicsView):
                     leftmost_string, rightmost_string = sorted(
                         self.moving_barre_string_coord)
                     for note_fret, np_string in self.note_items:
-                        if note_fret == self.moving_barre_fret and \
-                                np_string >= leftmost_string and \
-                                np_string <= rightmost_string:
+                        if (note_fret == self.moving_barre_fret or note_fret == 0) \
+                            and np_string >= leftmost_string \
+                            and np_string <= rightmost_string:
                             coords_to_delete += [(note_fret, np_string)]
 
                     for coord in coords_to_delete:
@@ -420,31 +439,40 @@ class FretboardView(QtWidgets.QGraphicsView):
         # check if it doesn't exist already
         if note_coords not in self.note_items:
             fret, string = note_coords
-            # check if it is not already contained in a barre
-            if fret in self.barre_items:
-                for sleft, sright in self.barre_items[fret]:
-                    if string >= sleft or string <= sright:
-                        return
-            # create circle for the note and add to dictionary
-            x = string * self.FRETWIDTH - self.NOTEDIAMETER / 2
-            y = fret * self.FRETHEIGHT - self.FRETHEIGHT / 2 - self.NOTEDIAMETER / 2
-            note = FretboardNoteItem(
-                fret,
-                string,
-                x,
-                y + self.y_offset,
-                self.NOTEDIAMETER,
-                self.NOTEDIAMETER
-            )
-            note.setBrush(QBrush(note.pen().color()))
-            self.scene().addItem(note)
-            self.note_items[(fret, string)] = note
+            if fret > 0:
+                # check if it is not already contained in a barre
+                if fret in self.barre_items:
+                    for sleft, sright in self.barre_items[fret]:
+                        if string >= sleft or string <= sright:
+                            return
+                # create circle for the note and add to dictionary
+                x = string * self.FRETWIDTH - self.NOTEDIAMETER / 2
+                y = fret * self.FRETHEIGHT - self.FRETHEIGHT / 2 - self.NOTEDIAMETER / 2
+                note = FretboardNoteItem(
+                    fret,
+                    string,
+                    x,
+                    y + self.y_offset,
+                    self.NOTEDIAMETER,
+                    self.NOTEDIAMETER
+                )
+                # overwrites the open string note, if any (check done inside the function)
+                self.removeSingleNote((0, string))
+                note.setBrush(QBrush(note.pen().color()))
+                self.scene().addItem(note)
+                self.note_items[(fret, string)] = note
+            else:
+                # adds a dummy value to the dict for tracking
+                self.note_items[(fret, string)] = None
+
             self.updateActiveStrings()
 
     def removeSingleNote(self, note_coords: tuple[int, int]):
         fret, string = note_coords
         if (fret, string) in self.note_items:
-            self.scene().removeItem(self.note_items[(fret, string)])
+            if fret > 0:
+                # open strings are not added to the scene
+                self.scene().removeItem(self.note_items[(fret, string)])
             del self.note_items[(fret, string)]
             self.updateActiveStrings()
 
@@ -473,7 +501,7 @@ class FretboardView(QtWidgets.QGraphicsView):
                         leftmost_string, rightmost_string)
                     coords_to_delete += [coord]
 
-            # we should add the overlapped barre if we deleted the overlapped ones
+            # we should add the new "super" barre and delete the overlapped ones
             if len(coords_to_delete) > 0:
                 for coord in coords_to_delete:
                     self.removeBarreItem(fret, coord)
@@ -522,9 +550,9 @@ class FretboardView(QtWidgets.QGraphicsView):
                 superscript = "rd"
             else:
                 superscript = "th"
-        # self.fret_start = fret
-        self.fret_text_item.setHtml(
-            "{}<sup>{}</sup>".format(fret, superscript))
+        html = "{}<sup>{}</sup>".format(fret, superscript)
+        self.fret_text_item.setHtml(html)
+        self.fret_text_dummy_item.setHtml(html)
 
 
 if __name__ == '__main__':

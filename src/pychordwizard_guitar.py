@@ -21,9 +21,20 @@ if __name__ == '__main__':
     lay_grid.addWidget(QtWidgets.QComboBox(), 1, 1)
     lay_grid.addWidget(QtWidgets.QLabel("Chord Name"), 2, 0)
     lay_grid.addWidget(QtWidgets.QLineEdit(), 2, 1)
+
     lay_grid.setRowStretch(0, 0)
     lay_grid.setRowStretch(1, 0)
     lay_right.addLayout(lay_grid)
+    #
+    lay_buttons = QtWidgets.QGridLayout(w)
+    lay_buttons.addWidget(QtWidgets.QPushButton("Alt"), 0, 0)
+    lay_buttons.addWidget(QtWidgets.QPushButton("Alt"), 0, 1)
+    lay_buttons.addWidget(QtWidgets.QPushButton("Alt"), 0, 2)
+    lay_buttons.addWidget(QtWidgets.QPushButton("Alt"), 1, 0)
+    lay_buttons.addWidget(QtWidgets.QPushButton("Alt"), 1, 1)
+    lay_buttons.addWidget(QtWidgets.QPushButton("Alt"), 1, 2)
+    lay_right.addLayout(lay_buttons)
+    # vertical spacer
     lay_right.addSpacerItem(QtWidgets.QSpacerItem(
         0, 0, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding))
     lay_main.addLayout(lay_right)
