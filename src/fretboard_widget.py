@@ -1,9 +1,9 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QGraphicsScene, QGraphicsTextItem, QGraphicsLineItem
-from PyQt5.QtCore import QRectF, QPointF, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QPointF, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QPen, QBrush, QTransform, QFont
 from fretboard_items import FretboardBarreItem, FretboardNoteItem, \
-    FretboardInlayItem, FretboardRectItem, StringButtonItem
+    FretboardInlayItem, StringButtonItem, FretboardItem
 
 
 class FretboardScene(QGraphicsScene):
@@ -64,24 +64,15 @@ class FretboardView(QtWidgets.QGraphicsView):
         self.scene().addItem(self.nutmeg_item)
 
         # initialize frets and strings
-        self.fret_rect = [[
-            FretboardRectItem(
-                i+1,
-                (j, j+1),
-                QRectF(
-                    j * self.FRETWIDTH,
-                    i * self.FRETHEIGHT + self.y_offset,
-                    self.FRETWIDTH,
-                    self.FRETHEIGHT
-                )
-            )
-            for j in range(self.num_strings-1)]
-            for i in range(num_frets)
-        ]
-        for frets in self.fret_rect:
-            for rect in frets:
-                rect.setPen(QPen(QtCore.Qt.darkGray, 1))
-                self.scene().addItem(rect)
+        self.fretboard = FretboardItem(
+            num_frets,
+            self.num_strings,
+            self.FRETWIDTH,
+            self.FRETHEIGHT,
+            QPointF(0, self.y_offset)
+        )
+        self.fretboard.setPen(QPen(QtCore.Qt.darkGray, 1))
+        self.scene().addItem(self.fretboard)
 
         # fret label
         self.fret_text_item = QGraphicsTextItem()
@@ -153,7 +144,7 @@ class FretboardView(QtWidgets.QGraphicsView):
             return
         sp = self.mapToScene(event.pos())
         item = self.scene().itemAt(sp, QTransform())
-        if item and (isinstance(item, FretboardRectItem) or isinstance(item, FretboardBarreItem)):
+        if item and (isinstance(item, FretboardItem) or isinstance(item, FretboardBarreItem)):
             np_fret, np_string = self.note_pressed_coord
             string = int((sp.x() + self.FRETWIDTH / 2) / self.FRETWIDTH)
 
@@ -304,12 +295,14 @@ class FretboardView(QtWidgets.QGraphicsView):
             self.string_button_items[list(active_strings)[0]].is_root = True
 
     def setOpenTop(self, enable: bool):
-        for rect in self.fret_rect[0]:
-            rect.m_open_top = enable
+        self.fretboard.open_top = enable
+        #for rect in self.fret_rect[0]:
+        #    rect.m_open_top = enable
 
     def setOpenBottom(self, enable: bool):
-        for rect in self.fret_rect[-1]:
-            rect.m_open_bottom = enable
+        self.fretboard.open_bottom = enable
+        #for rect in self.fret_rect[-1]:
+        #    rect.m_open_bottom = enable
 
     def addSingleNote(self, note_coords: tuple[int, int]):
         # check if it doesn't exist already
@@ -439,6 +432,6 @@ if __name__ == '__main__':
     fretboard = FretboardView()
     fretboard.setOpenBottom(True)
     lay.addWidget(fretboard)
-    w.resize(640, 480)
+    w.resize(480, 640)
     w.show()
     sys.exit(app.exec_())
