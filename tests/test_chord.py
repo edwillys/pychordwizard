@@ -32,24 +32,25 @@ def test_intervals():
     for el in test_array:
         notes, expected, expected_inv = el
         chord = Chord(notes)
-        assert(str(chord) == expected)
-        # test different octaves 
+        assert (str(chord) == expected)
+        # test different octaves
         notes_oct = notes.split()
         notes_oct[0] += '3'
         notes_oct[1] += '6'
         notes_oct = ' '.join(notes_oct)
         chord_oct = Chord(notes_oct)
-        assert(str(chord_oct) == expected)
+        assert (str(chord_oct) == expected)
         # test inversion
         notes_inv = notes.split()
         notes_inv[0] += '5'
         notes_inv[1] += '4'
         notes_inv = ' '.join(notes_inv)
         chord_inv = Chord(notes_inv)
-        assert(str(chord_inv) == expected_inv)
-    
-    assert(str(Chord("C4 C5")) == "8")
-    assert(str(Chord("C0 C5")) == "8")
+        assert (str(chord_inv) == expected_inv)
+
+    assert (str(Chord("C4 C5")) == "8")
+    assert (str(Chord("C0 C5")) == "8")
+
 
 def test_triads():
     test_array = [
@@ -63,21 +64,38 @@ def test_triads():
         ["C3 E3 G3 C4 E4 G4", "C"],
         ["C D G", "Csus2"],
         ["C F G", "Csus4"],
+        ["C3 E4 G5", "C"],
     ]
     for t in test_array:
-        assert(str(Chord(t[0])) == t[1])
+        assert (str(Chord(t[0])) == t[1])
+
 
 def test_triad_inversion():
-    pass
+    test_array = [
+        ["C4 E4 G3", "C/G"],
+    ]
+    for t in test_array:
+        chord = Chord(t[0])
+        chord_names = [str(var) for var in chord.variants]
+        assert (t[1] in chord_names)
+
 
 def test_sevenths():
-    pass
+    test_array = [
+        ["C E G B", "Cmaj7"],
+        ["C E B", "Cmaj7"],  # no 5th
+        ["C E G Bb", "C7"],
+        ["C Eb G Bb", "Cm7"],
+        ["C Eb G B", "Cmmaj7"],
+        ["C3 E4 G5 B6", "Cmaj7"],  # different octaves
+    ]
+    for t in test_array:
+        assert (str(Chord(t[0])) == t[1])
+
 
 def test_extensions():
     pass
 
-def test_alternate_names():
-    pass
 
 if __name__ == "__main__":
     import pytest
