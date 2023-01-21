@@ -19,12 +19,14 @@ class FretboardView(QtWidgets.QGraphicsView):
     BARRE_THICKNESS = NOTEDIAMETER
     STRING_BTN_SITZE = 5
 
-    def __init__(self, num_frets=12, tuning: list[str] = ["E", "A", "D", "G", "B", "E"], fret_start=0, parent=None):
+    def __init__(self, num_frets=13, tuning: list[str] = ["E", "A", "D", "G", "B", "E"], fret_start=0, parent=None):
         super().__init__(parent)
         # self.initialize()
 
+        self.fret_start = fret_start
         self.num_frets = num_frets
         self.num_strings = len(tuning)
+        self.tuning = tuning
         self.note_items = {}
         self.barre_items = {}
         self.active = {}
@@ -32,100 +34,11 @@ class FretboardView(QtWidgets.QGraphicsView):
         self.note_pressed_coord = None
         self.moving_barre_string_coord = None
         self.moving_barre_fret = None
+        self.open_top = False
+        self.open_bottom = True
 
         # set up scene
-        scene = FretboardScene()
-        self.setScene(scene)
-
-        # tuning
-        self.tuning_items = [
-            QGraphicsTextItem(string_name)
-            for string_name in tuning
-        ]
-        for i, ti in enumerate(self.tuning_items):
-            ti.setFont(QFont("Courier New", 6))
-            ti.setPos(
-                i * self.FRETWIDTH - ti.boundingRect().width() / 2.,
-                0.
-            )
-            self.scene().addItem(ti)
-
-        self.y_offset = self.tuning_items[0].boundingRect().height()
-
-        # nutmeg
-        self.nutmeg_item = QGraphicsLineItem(
-            0.,
-            self.y_offset,
-            (self.num_strings - 1) * self.FRETWIDTH,
-            self.y_offset
-        )
-        self.nutmeg_item.setZValue(1)
-        self.nutmeg_item.setPen(QPen(QtCore.Qt.black, 3.))
-        self.scene().addItem(self.nutmeg_item)
-
-        # initialize frets and strings
-        self.fretboard = FretboardItem(
-            num_frets,
-            self.num_strings,
-            self.FRETWIDTH,
-            self.FRETHEIGHT,
-            QPointF(0, self.y_offset)
-        )
-        self.fretboard.setPen(QPen(QtCore.Qt.darkGray, 1))
-        self.scene().addItem(self.fretboard)
-
-        # fret label
-        self.fret_text_item = QGraphicsTextItem()
-        self.fret_text_item.setDefaultTextColor(QtCore.Qt.darkGray)
-        fret_pos = QPointF(-20, self.y_offset)
-        fret_font = QFont("Courier New", 7, weight=100)
-        self.fret_text_item.setPos(fret_pos)
-        self.fret_text_item.setFont(fret_font)
-        self.scene().addItem(self.fret_text_item)
-        # to keep the symmetry
-        self.fret_text_dummy_item = QGraphicsTextItem()
-        self.fret_text_dummy_item.setVisible(False)
-        fret_pos.setX(self.FRETWIDTH * (self.num_strings - 1))
-        self.fret_text_dummy_item.setFont(fret_font)
-        self.fret_text_dummy_item.setPos(fret_pos)
-        self.scene().addItem(self.fret_text_dummy_item)
-
-        # inlays
-        self.inlays = [
-            FretboardInlayItem(
-                0.,
-                (fret - 1) * self.FRETHEIGHT + self.y_offset,
-                (self.num_strings - 1) * self.FRETWIDTH,
-                self.FRETHEIGHT,
-                fret
-            )
-            for fret in range(1, self.num_frets+1)
-        ]
-        for inlay in self.inlays:
-            inlay.setZValue(-1)
-            self.scene().addItem(inlay)
-
-        self.setFretStart(fret_start)
-
-        # string buttons
-        self.string_button_items = [
-            StringButtonItem(
-                i,
-                i * self.FRETWIDTH - self.STRING_BTN_SITZE / 2.,
-                self.y_offset + self.FRETHEIGHT *
-                self.num_frets + self.STRING_BTN_SITZE / 2. + 5.,
-                self.STRING_BTN_SITZE,
-                self.STRING_BTN_SITZE
-            )
-            for i in range(self.num_strings)
-        ]
-        for str_btn in self.string_button_items:
-            self.scene().addItem(str_btn)
-
-        # connect note press signal to slot
-        self.scene().barre_pressed.connect(self.onBarrePressed)
-        self.scene().existing_note_pressed.connect(self.onExistingNotePressed)
-        self.scene().new_note_pressed.connect(self.onNewNotePressed)
+        self.initGui()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -238,12 +151,112 @@ class FretboardView(QtWidgets.QGraphicsView):
             QtWidgets.QGraphicsView.DontAdjustForAntialiasing, True)
         self.setBackgroundBrush(QtWidgets.QApplication.palette().base())
 
+    def initGui(self):
+        scene = FretboardScene()
+        self.setScene(scene)
+        # tuning
+        self.tuning_items = [
+            QGraphicsTextItem(string_name)
+            for string_name in self.tuning
+        ]
+        for i, ti in enumerate(self.tuning_items):
+            ti.setFont(QFont("Courier New", 6))
+            ti.setPos(
+                i * self.FRETWIDTH - ti.boundingRect().width() / 2.,
+                0.
+            )
+            self.scene().addItem(ti)
+
+        self.y_offset = self.tuning_items[0].boundingRect().height()
+
+        # nutmeg
+        self.nutmeg_item = QGraphicsLineItem(
+            0.,
+            self.y_offset,
+            (self.num_strings - 1) * self.FRETWIDTH,
+            self.y_offset
+        )
+        self.nutmeg_item.setZValue(1)
+        self.nutmeg_item.setPen(QPen(QtCore.Qt.black, 3.))
+        self.scene().addItem(self.nutmeg_item)
+
+        # initialize frets and strings
+        self.fretboard = FretboardItem(
+            self.num_frets,
+            self.num_strings,
+            self.FRETWIDTH,
+            self.FRETHEIGHT,
+            QPointF(0, self.y_offset)
+        )
+        self.fretboard.setPen(QPen(QtCore.Qt.darkGray, 1))
+        self.fretboard.open_bottom = self.open_bottom
+        self.fretboard.open_top = self.open_top
+        self.scene().addItem(self.fretboard)
+
+        # fret label
+        self.fret_text_item = QGraphicsTextItem()
+        self.fret_text_item.setDefaultTextColor(QtCore.Qt.darkGray)
+        fret_pos = QPointF(-20, self.y_offset)
+        fret_font = QFont("Courier New", 7, weight=100)
+        self.fret_text_item.setPos(fret_pos)
+        self.fret_text_item.setFont(fret_font)
+        self.scene().addItem(self.fret_text_item)
+        # to keep the symmetry
+        self.fret_text_dummy_item = QGraphicsTextItem()
+        self.fret_text_dummy_item.setVisible(False)
+        fret_pos.setX(self.FRETWIDTH * (self.num_strings - 1))
+        self.fret_text_dummy_item.setFont(fret_font)
+        self.fret_text_dummy_item.setPos(fret_pos)
+        self.scene().addItem(self.fret_text_dummy_item)
+
+        # inlays
+        self.inlays = [
+            FretboardInlayItem(
+                0.,
+                (fret - 1) * self.FRETHEIGHT + self.y_offset,
+                (self.num_strings - 1) * self.FRETWIDTH,
+                self.FRETHEIGHT,
+                fret
+            )
+            for fret in range(1, self.num_frets+1)
+        ]
+        for inlay in self.inlays:
+            inlay.setZValue(-1)
+            self.scene().addItem(inlay)
+
+        self.updateFretStart()
+
+        # string buttons
+        self.string_button_items = [
+            StringButtonItem(
+                i,
+                i * self.FRETWIDTH - self.STRING_BTN_SITZE / 2.,
+                self.y_offset + self.FRETHEIGHT *
+                self.num_frets + self.STRING_BTN_SITZE / 2. + 5.,
+                self.STRING_BTN_SITZE,
+                self.STRING_BTN_SITZE
+            )
+            for i in range(self.num_strings)
+        ]
+        for str_btn in self.string_button_items:
+            self.scene().addItem(str_btn)
+
+        # connect note press signal to slot
+        self.scene().barre_pressed.connect(self.onBarrePressed)
+        self.scene().existing_note_pressed.connect(self.onExistingNotePressed)
+        self.scene().new_note_pressed.connect(self.onNewNotePressed)
+
+    def setCapo(self, fret: int):
+        self.fret_start = fret
+        self.updateFretStart()
+
+    def setTuning(self, tuning_array: list[str]):
+        self.tuning = tuning_array
+        self.num_strings = len(tuning_array)
+        self.clear()
+        self.initGui()
+
     def clear(self):
-        for coord in list(self.note_items.keys()):
-            self.removeSingleNote(coord)
-        for fret in list(self.barre_items.keys()):
-            for coord in list(fret.keys()):
-                self.removeBarreItem(fret, coord)
         self.note_items = {}
         self.barre_items = {}
         self.moving_barre_item = None
@@ -295,14 +308,12 @@ class FretboardView(QtWidgets.QGraphicsView):
             self.string_button_items[list(active_strings)[0]].is_root = True
 
     def setOpenTop(self, enable: bool):
+        self.open_top = enable
         self.fretboard.open_top = enable
-        #for rect in self.fret_rect[0]:
-        #    rect.m_open_top = enable
 
     def setOpenBottom(self, enable: bool):
+        self.open_bottom = enable
         self.fretboard.open_bottom = enable
-        #for rect in self.fret_rect[-1]:
-        #    rect.m_open_bottom = enable
 
     def addSingleNote(self, note_coords: tuple[int, int]):
         # check if it doesn't exist already
@@ -400,12 +411,12 @@ class FretboardView(QtWidgets.QGraphicsView):
 
         return (x, y, w, self.BARRE_THICKNESS)
 
-    def setFretStart(self, fret: int):
-        self.setOpenTop(fret > 0)
-        self.fret_text_item.setVisible(fret > 0)
-        self.nutmeg_item.setVisible(fret == 0)
-        fret_digit_last = (fret % 10)
-        fret_digit_before_last = (fret // 10) % 10
+    def updateFretStart(self):
+        self.setOpenTop(self.fret_start > 0)
+        self.fret_text_item.setVisible(self.fret_start > 0)
+        self.nutmeg_item.setVisible(self.fret_start == 0)
+        fret_digit_last = (self.fret_start % 10)
+        fret_digit_before_last = (self.fret_start // 10) % 10
 
         if fret_digit_before_last == 1:
             superscript = "th"
@@ -418,7 +429,7 @@ class FretboardView(QtWidgets.QGraphicsView):
                 superscript = "rd"
             else:
                 superscript = "th"
-        html = "{}<sup>{}</sup>".format(fret, superscript)
+        html = "{}<sup>{}</sup>".format(self.fret_start, superscript)
         self.fret_text_item.setHtml(html)
         self.fret_text_dummy_item.setHtml(html)
 
