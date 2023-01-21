@@ -38,6 +38,11 @@ class Chord():
             
     def __str__(self) -> str:
         if len(self.variants) > 0:
+            var = self.variants[0]
+            name_short = str(var)
+            if self.bass and  var.root != self.bass:
+                name_short += f'/{self.bass.letter}'
+
             return str(self.variants[0])
         else:
             return ""
@@ -106,19 +111,28 @@ class ChordVariant(Variant):
     })
 
     TRIAD_MAP = OrderedDict({
-        ("3", "#5"): ("3", "#5", "augmented"),
-        ("3", "5"): ("3", "5", "major"),
-        ("3", "b5"): ("3", "#11", "major"),
-        ("m3", "b5"): ("m3", "b5", "diminished"),
-        ("m3", "5"): ("m3", "5", "minor"),
-        ("m3", "#5"): ("m3", "b6", "minor"),
-        ("4", "b5"): ("4", "b5", "sus4"),
-        ("4", "5"): ("4", "5", "sus4"),
-        ("4", "#5"): ("4", "b6", "sus4"),
-        ("2", "b5"): ("2", "#11", "sus2"),
-        ("2", "5"): ("2", "5", "sus2"),
-        ("2", "#5"): ("2", "b6", "sus2"),
+        ("3", "#5"): ("3", "#5", "", "augmented"),
+        ("3", "5"): ("3", "5", "", "major"),
+        ("3", "b5"): ("3", "", "#11", "major"),
+        ("m3", "b5"): ("m3", "b5", "", "diminished"),
+        ("m3", "5"): ("m3", "5", "", "minor"),
+        ("m3", "#5"): ("m3", "", "b6", "minor"),
+        ("4", "b5"): ("4", "", "b5", "sus4"),
+        ("4", "5"): ("4", "5", "", "sus4"),
+        ("4", "#5"): ("4", "", "b6", "sus4"),
+        ("2", "b5"): ("2", "", "#11", "sus2"),
+        ("2", "5"): ("2", "5", "", "sus2"),
+        ("2", "#5"): ("2", "", "b6", "sus2"),
     })
+
+    TRIAD_NAME_MAP = {
+        "major": "",
+        "minor": "m",
+        "diminished": "dim",
+        "augmented": "aug",
+        "sus4": "sus4",
+        "sus2": "sus2",
+    }
 
     def __init__(self, notes: list[Note]) -> None:
         super().__init__()
@@ -127,14 +141,20 @@ class ChordVariant(Variant):
         self.alterations = None
         self.third = {}
         self.fifth = {}
-        self.seventh = None
+        self.seventh = {}
 
         if len(notes) > 2:
             # TODO: remove notes in different octaves
             self.root = notes[0]
-            self.distances = [notes[i] - notes[i - 1]
+            self.distances = [notes[i] - notes[0]
                               for i in range(1, len(notes))]
             self.form(self.distances)
+
+    def update_name(self):
+        name_short = self.root.letter
+        for key in self.triad:
+            name_short += self.TRIAD_NAME_MAP[key]
+        self.name_short = name_short
 
     def form(self, dists: list[int]) -> None:
         # restrain everything to one octave and remove repeated intervals and unissons to the root
@@ -159,10 +179,12 @@ class ChordVariant(Variant):
 
         # try to make the triad, given the third and fith from above
         if (third_name, fifth_name) in self.TRIAD_MAP:
-            mapped_third, mapped_fith, triad = self.TRIAD_MAP[(third_name, fifth_name)]
+            mapped_third, mapped_fith, ext, triad_name = self.TRIAD_MAP[(third_name, fifth_name)]
             self.third[mapped_third] = None
-            if "5" in mapped_fith:
+            if mapped_fith:
                 self.fifth[mapped_fith] = None
-            else:
-                self.extensions[mapped_fith] = None
-            self.triad[triad] = None
+            if ext:
+                self.extensions[ext] = None
+            self.triad[triad_name] = None
+        
+        self.update_name()

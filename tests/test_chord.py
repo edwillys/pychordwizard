@@ -51,6 +51,34 @@ def test_intervals():
     assert(str(Chord("C4 C5")) == "8")
     assert(str(Chord("C0 C5")) == "8")
 
+def test_triads():
+    test_array = [
+        ["C E G", "C"],
+        ["C Eb G", "Cm"],
+        ["C Eb Gb", "Cdim"],
+        ["C E G#", "Caug"],
+        ["C D# G", "Cm"],
+        ["C D# F#", "Cdim"],
+        ["C E Ab", "Caug"],
+        ["C3 E3 G3 C4 E4 G4", "C"],
+        ["C D G", "Csus2"],
+        ["C F G", "Csus4"],
+    ]
+    for t in test_array:
+        assert(str(Chord(t[0])) == t[1])
+
+def test_triad_inversion():
+    pass
+
+def test_sevenths():
+    pass
+
+def test_extensions():
+    pass
+
+def test_alternate_names():
+    pass
+
 if __name__ == "__main__":
     import pytest
     pytest.main()
