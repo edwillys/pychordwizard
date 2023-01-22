@@ -1,6 +1,5 @@
-from .note import Note
+from note import Note
 from enum import Enum
-import itertools as it
 from collections import OrderedDict
 
 
@@ -11,28 +10,29 @@ class Chord():
         INTERVAL = 2,
         CHORD = 3
 
-    def __init__(self, chord: str) -> None:
+    def __init__(self, notes: str | set[Note]) -> None:
         self.type = self.Type.EMPTY
         self.variants = []
 
-        notes = set([Note(n) for n in chord.split()])
+        if isinstance(notes, str):
+            notes = set([Note(n) for n in notes.split()])
         self.notes = sorted(list(filter(None, notes)))
         if len(self.notes) > 0:
-            self.bass = self.notes[0]
+            bass = self.notes[0]
             if len(self.notes) == 1:
                 self.type = self.Type.NOTE
-                self.variants = [NoteVariant(self.notes)]
+                self.variants = [NoteVariant(self.notes, bass)]
             elif len(self.notes) == 2:
                 self.type = self.Type.INTERVAL
                 self.variants = [
-                    IntervalVariant(self.notes),
+                    IntervalVariant(self.notes, bass),
                 ]
             else:
                 self.type = self.Type.CHORD
                 for i in range(len(self.notes)):
                     next = [self.notes[(j+i) % len(self.notes)]
                             for j in range(len(self.notes))]
-                    self.variants += [ChordVariant(next)]
+                    self.variants += [ChordVariant(next, bass)]
 
     def __str__(self) -> str:
         if len(self.variants) > 0:
@@ -40,14 +40,11 @@ class Chord():
         else:
             return ""
 
-    def all(self):
-        return self.variants
-
 
 class Variant():
-    def __init__(self, notes: list[Note]) -> None:
+    def __init__(self, notes: list[Note], bass: Note) -> None:
         self.root = notes[0]
-        self.bass = sorted(notes)[0]
+        self.bass = bass
         self.name_short = ""
         self.name_complete = ""
 
@@ -56,8 +53,8 @@ class Variant():
 
 
 class NoteVariant(Variant):
-    def __init__(self, notes: list[Note]) -> None:
-        super().__init__(notes)
+    def __init__(self, notes: list[Note], bass: Note) -> None:
+        super().__init__(notes, bass)
         self.name_short = self.root.pitch
 
 
@@ -77,8 +74,8 @@ class IntervalVariant(Variant):
         11: [("M7", "Major seventh")],
     }
 
-    def __init__(self, notes: list[Note]) -> None:
-        super().__init__(notes)
+    def __init__(self, notes: list[Note], bass: Note) -> None:
+        super().__init__(notes, bass)
         sorted_notes = sorted(notes)
         self.form(sorted_notes[0], sorted_notes[1])
 
@@ -92,6 +89,8 @@ class IntervalVariant(Variant):
                 self.name_short, self.name_complete = possible_names[0]
             else:
                 self.name_short, self.name_complete = possible_names[1]
+        self.name_short = n0.pitch + self.name_short
+        self.name_complete = n0.pitch + self.name_complete
 
 
 class ChordVariant(Variant):
@@ -159,8 +158,8 @@ class ChordVariant(Variant):
         9: "13",
     }
 
-    def __init__(self, notes: list[Note]) -> None:
-        super().__init__(notes)
+    def __init__(self, notes: list[Note], bass: Note) -> None:
+        super().__init__(notes, bass)
         self.triad = {}
         self.extensions = {}
         self.alterations = None
@@ -175,15 +174,15 @@ class ChordVariant(Variant):
                               for i in range(1, len(notes))]
             self.form(self.distances)
 
-    def update_name(self):
-        name_short = self.root.letter
+    def update_name(self) -> None:
+        name_short = self.root.pitch
         for key in self.triad:
             name_short += self.TRIAD_NAME_MAP[key]
         if self.seventh:
             name_short += f"{','.join([key for key in self.seventh])}"
         if self.extensions:
             name_short += f"({','.join([key for key in self.extensions])})"
-        if self.bass and self.root != self.bass:
+        if self.bass and self.root.letter != self.bass.letter:
             name_short += f'/{self.bass.letter}'
         self.name_short = name_short
 

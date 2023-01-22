@@ -19,12 +19,12 @@ class Note():
             accident = note[1].lower()
             if len(self.check_pitch(letter + accident)) > 0:
                 octave = self.check_octave(note[2:])
-                if octave > 0:
+                if octave >= 0:
                     self.assign_pitch(letter, accident)
                     self.octave = octave
             elif len(self.check_pitch(letter)) > 0:
                 octave = self.check_octave(note[1:])
-                if octave > 0:
+                if octave >= 0:
                     self.pitch = letter
                     self.octave = octave
         elif len(note) == 2:
@@ -34,7 +34,7 @@ class Note():
                 self.assign_pitch(letter, accident_octave)
             elif len(self.check_pitch(letter)) > 0:
                 octave = self.check_octave(accident_octave)
-                if octave > 0:
+                if octave >= 0:
                     self.assign_pitch(letter)
                     self.octave = octave
         elif len(note) == 1:
@@ -46,7 +46,7 @@ class Note():
 
     def __le__(self, __o: "Note") -> bool:
         return self == __o or self < __o
-    
+
     def __ge__(self, __o: "Note") -> bool:
         return self == __o or self > __o
 
@@ -81,6 +81,16 @@ class Note():
     def __hash__(self) -> int:
         return hash(self.pitch)
 
+    def __add__(self, __o: int) -> "Note":
+        pitch_ind = self.check_pitch_ind(self.pitch)
+        if self.octave >= 0:
+            octave = self.octave + (pitch_ind + __o) // 12
+            pitch_ind = (pitch_ind + __o) % 12
+            return Note(f"{self.PITCHES_SHARP[pitch_ind]}{octave}")
+        else:
+            pitch_ind = (pitch_ind + __o) % 12
+            return Note(f"{self.PITCHES_SHARP[pitch_ind]}")
+
     def assign_pitch(self, letter: str, accident: str = ""):
         self.letter = letter
         self.accident = accident
@@ -91,7 +101,7 @@ class Note():
             return pitch
         else:
             return ""
-    
+
     def check_pitch_ind(self, pitch: str):
         if pitch in self.PITCHES_FLAT:
             return self.PITCHES_FLAT.index(pitch)
@@ -109,3 +119,29 @@ class Note():
         except:
             pass
         return retval
+
+    def find_below(self, note: "Note") -> "Note":
+        if self.octave >= 0:
+            if self.pitch in self.PITCHES_SHARP:
+                this_ind = self.PITCHES_SHARP.index(self.pitch)
+            else:
+                this_ind = self.PITCHES_FLAT.index(self.pitch)
+            if note.pitch in self.PITCHES_SHARP:
+                note_ind = self.PITCHES_SHARP.index(note.pitch)
+            else:
+                note_ind = self.PITCHES_FLAT.index(note.pitch)
+
+            if note_ind < this_ind:
+                octave = self.octave
+            else:
+                octave = self.octave - 1
+
+            # if (self.letter > 'C' and (note.letter < self.letter and note.letter >= 'C')) or \
+            #   (self.letter < 'C' and (note.letter > self.letter and note.letter >= 'C')):
+            #    octave = self.octave
+            # else:
+            #    octave = self.octave - 1
+
+            return Note(f"{note.pitch}{octave}")
+        else:
+            return Note(str(self))

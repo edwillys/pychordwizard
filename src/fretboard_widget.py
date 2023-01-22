@@ -19,7 +19,7 @@ class FretboardView(QtWidgets.QGraphicsView):
     BARRE_THICKNESS = NOTEDIAMETER
     STRING_BTN_SITZE = 5
 
-    def __init__(self, num_frets=13, tuning: list[str] = ["E", "A", "D", "G", "B", "E"], fret_start=0, parent=None):
+    def __init__(self, num_frets=13, tuning: list[str] = ["E", "A", "D", "G", "B", "E"], fret_start=0, parent=None) -> None:
         super().__init__(parent)
         # self.initialize()
 
@@ -38,6 +38,9 @@ class FretboardView(QtWidgets.QGraphicsView):
         self.open_bottom = True
 
         # set up scene
+        scene = FretboardScene()
+        self.setScene(scene)
+
         self.initGui()
 
     def resizeEvent(self, event):
@@ -152,8 +155,7 @@ class FretboardView(QtWidgets.QGraphicsView):
         self.setBackgroundBrush(QtWidgets.QApplication.palette().base())
 
     def initGui(self):
-        scene = FretboardScene()
-        self.setScene(scene)
+        self.scene().clear()
         # tuning
         self.tuning_items = [
             QGraphicsTextItem(string_name)
@@ -246,26 +248,26 @@ class FretboardView(QtWidgets.QGraphicsView):
         self.scene().existing_note_pressed.connect(self.onExistingNotePressed)
         self.scene().new_note_pressed.connect(self.onNewNotePressed)
 
-    def setCapo(self, fret: int):
+    def setCapo(self, fret: int) -> None:
         self.fret_start = fret
         self.updateFretStart()
 
-    def setTuning(self, tuning_array: list[str]):
+    def setTuning(self, tuning_array: list[str]) -> None:
         self.tuning = tuning_array
         self.num_strings = len(tuning_array)
         self.clear()
-        self.initGui()
 
-    def clear(self):
+    def clear(self) -> None:
         self.note_items = {}
         self.barre_items = {}
         self.moving_barre_item = None
         self.note_pressed_coord = None
         self.moving_barre_string_coord = None
         self.moving_barre_fret = None
+        self.initGui()
         self.updateActiveStringsAndNotes()
 
-    def updateActiveStringsAndNotes(self):
+    def updateActiveStringsAndNotes(self) -> None:
         active_strings = set()
         active_notes = {}
 
@@ -307,15 +309,15 @@ class FretboardView(QtWidgets.QGraphicsView):
         if len(active_strings) > 0:
             self.string_button_items[list(active_strings)[0]].is_root = True
 
-    def setOpenTop(self, enable: bool):
+    def setOpenTop(self, enable: bool) -> None:
         self.open_top = enable
         self.fretboard.open_top = enable
 
-    def setOpenBottom(self, enable: bool):
+    def setOpenBottom(self, enable: bool) -> None:
         self.open_bottom = enable
         self.fretboard.open_bottom = enable
 
-    def addSingleNote(self, note_coords: tuple[int, int]):
+    def addSingleNote(self, note_coords: tuple[int, int]) -> None:
         # check if it doesn't exist already
         if note_coords not in self.note_items:
             fret, string = note_coords
@@ -346,7 +348,7 @@ class FretboardView(QtWidgets.QGraphicsView):
                 self.note_items[(fret, string)] = None
             self.updateActiveStringsAndNotes()
 
-    def removeSingleNote(self, note_coords: tuple[int, int]):
+    def removeSingleNote(self, note_coords: tuple[int, int]) -> None:
         fret, string = note_coords
         if (fret, string) in self.note_items:
             if fret > 0:
@@ -355,7 +357,7 @@ class FretboardView(QtWidgets.QGraphicsView):
             del self.note_items[(fret, string)]
             self.updateActiveStringsAndNotes()
 
-    def addBarreItem(self, fret: int, string_coord: tuple[int, int], item: FretboardBarreItem):
+    def addBarreItem(self, fret: int, string_coord: tuple[int, int], item: FretboardBarreItem) -> None:
         # make sure the string coordinates are sorted from left to right
         string_coord = tuple(sorted(string_coord))
         if fret not in self.barre_items:
@@ -397,7 +399,7 @@ class FretboardView(QtWidgets.QGraphicsView):
                 self.barre_items[fret][string_coord] = item
         self.updateActiveStringsAndNotes()
 
-    def removeBarreItem(self, fret: int, string_coords: tuple[int, int]):
+    def removeBarreItem(self, fret: int, string_coords: tuple[int, int]) -> None:
         if fret in self.barre_items and string_coords in self.barre_items[fret]:
             self.scene().removeItem(self.barre_items[fret][string_coords])
             del self.barre_items[fret][string_coords]
@@ -411,7 +413,7 @@ class FretboardView(QtWidgets.QGraphicsView):
 
         return (x, y, w, self.BARRE_THICKNESS)
 
-    def updateFretStart(self):
+    def updateFretStart(self) -> None:
         self.setOpenTop(self.fret_start > 0)
         self.fret_text_item.setVisible(self.fret_start > 0)
         self.nutmeg_item.setVisible(self.fret_start == 0)

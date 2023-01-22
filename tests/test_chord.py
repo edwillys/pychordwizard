@@ -11,22 +11,22 @@ def test_one_note() -> None:
 
 def test_intervals():
     test_array = [
-        ["C C#", "m2", "M7"],
-        ["C Db", "m2", "M7"],
-        ["C D", "M2", "m7"],
-        ["C D#", "m3", "M6"],
-        ["C Eb", "m3", "M6"],
-        ["C E", "M3", "m6"],
-        ["C F", "4", "5"],
-        ["C F#", "aug4", "dim5"],
-        ["C Gb", "dim5", "aug4"],
-        ["C G", "5", "4"],
-        ["C G#", "aug5", "M3"],
-        ["C Ab", "m6", "M3"],
-        ["C A", "M6", "m3"],
-        ["C A#", "m7", "M2"],
-        ["C Bb", "m7", "M2"],
-        ["C B", "M7", "m2"],
+        ["C C#", "Cm2", "C#M7"],
+        ["C Db", "Cm2", "DbM7"],
+        ["C D", "CM2", "Dm7"],
+        ["C D#", "Cm3", "D#M6"],
+        ["C Eb", "Cm3", "EbM6"],
+        ["C E", "CM3", "Em6"],
+        ["C F", "C4", "F5"],
+        ["C F#", "Caug4", "F#dim5"],
+        ["C Gb", "Cdim5", "Gbaug4"],
+        ["C G", "C5", "G4"],
+        ["C G#", "Caug5", "G#M3"],
+        ["C Ab", "Cm6", "AbM3"],
+        ["C A", "CM6", "Am3"],
+        ["C A#", "Cm7", "A#M2"],
+        ["C Bb", "Cm7", "BbM2"],
+        ["C B", "CM7", "Bm2"],
     ]
 
     for el in test_array:
@@ -48,8 +48,8 @@ def test_intervals():
         chord_inv = Chord(notes_inv)
         assert (str(chord_inv) == expected_inv)
 
-    assert (str(Chord("C4 C5")) == "8")
-    assert (str(Chord("C0 C5")) == "8")
+    assert (str(Chord("C4 C5")) == "C8")
+    assert (str(Chord("C0 C5")) == "C8")
 
 
 def test_triads():
