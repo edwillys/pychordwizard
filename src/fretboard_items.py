@@ -204,8 +204,12 @@ class FretboardInlayItem(QGraphicsRectItem):
         center = rect.center()
         cx = center.x()
         if self.style == "dot":
-            painter.setBrush(QtCore.Qt.lightGray)
-            painter.setPen(QtCore.Qt.gray)
+            color = QColor(QtCore.Qt.lightGray)
+            color.setAlphaF(0.5)
+            painter.setBrush(color)
+            pen = QPen(QtCore.Qt.gray)
+            pen.setWidthF(1.)
+            painter.setPen(pen)
             if norm_fret == 3 or norm_fret == 5 or \
                     norm_fret == 7 or norm_fret == 9:
                 painter.drawEllipse(center, self.size / 2., self.size / 2.)
