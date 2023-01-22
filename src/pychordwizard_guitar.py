@@ -20,6 +20,9 @@ class PyChordWizardGuitar(QtWidgets.QMainWindow):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
 
+        self.active_notes = []
+        self.chord_name_items = []
+
         lay_main = QtWidgets.QHBoxLayout()
         widget = QtWidgets.QWidget()
         widget.setLayout(lay_main)
@@ -67,7 +70,6 @@ class PyChordWizardGuitar(QtWidgets.QMainWindow):
         lay_right.addWidget(separator)
 
         # Chord names
-        self.chord_name_items = []
         self.lay_chord_names = QtWidgets.QGridLayout()
         lay_right.addLayout(self.lay_chord_names)
         # vertical spacer

@@ -198,7 +198,7 @@ class FretboardView(QtWidgets.QGraphicsView):
         # fret label
         self.fret_text_item = QGraphicsTextItem()
         self.fret_text_item.setDefaultTextColor(QtCore.Qt.darkGray)
-        fret_pos = QPointF(-20, self.y_offset)
+        fret_pos = QPointF(-20, self.y_offset - 10)
         fret_font = QFont("Courier New", 7, weight=100)
         self.fret_text_item.setPos(fret_pos)
         self.fret_text_item.setFont(fret_font)
@@ -338,8 +338,11 @@ class FretboardView(QtWidgets.QGraphicsView):
                     self.NOTEDIAMETER,
                     self.NOTEDIAMETER
                 )
-                # overwrites the open string note, if any (check done inside the function)
-                self.removeSingleNote((0, string))
+                # overwrites previous note onthe same string, if any
+                for f, s in self.note_items:
+                    if s == string:
+                        self.removeSingleNote((f, string))
+                        break
                 note.setBrush(QBrush(note.pen().color()))
                 self.scene().addItem(note)
                 self.note_items[(fret, string)] = note
