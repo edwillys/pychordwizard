@@ -102,7 +102,7 @@ class PyChordWizardGuitar(QtWidgets.QMainWindow):
             # get the notes for each string
             tuning = tuning.split()[0]
             tuning_array = [note for note in tuning.split("-")]
-            self.fretboard.setTuning(tuning_array)
+            self.fretboard.setTuning(list(tuning_array))
             # now add the octaves, starting from the highest string,
             # which is in octave 4 if above 'C4' or octave 3 if below it
             tuning_array.reverse()
