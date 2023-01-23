@@ -146,9 +146,10 @@ class PyChordWizardGuitar(QtWidgets.QMainWindow):
             chord = Chord(notes)
 
             n_cols = 2
-            chord_names = set()
+            # eliminate name duplicates by using dict(). set() does not keep the order
+            chord_names = dict()
             for var in chord.variants:
-                chord_names.add(str(var))
+                chord_names[str(var)] = None
             for i, name in enumerate(chord_names):
                 item = QtWidgets.QPushButton(str(name))
                 self.chord_name_items += [item]
