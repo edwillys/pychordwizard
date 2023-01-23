@@ -4,14 +4,8 @@ from collections import OrderedDict
 
 
 class Chord():
-    class Type(Enum):
-        EMPTY = 0,
-        NOTE = 1,
-        INTERVAL = 2,
-        CHORD = 3
 
     def __init__(self, notes: str | set[Note]) -> None:
-        self.type = self.Type.EMPTY
         self.variants = []
 
         if isinstance(notes, str):
@@ -20,19 +14,17 @@ class Chord():
         if len(self.notes) > 0:
             bass = self.notes[0]
             if len(self.notes) == 1:
-                self.type = self.Type.NOTE
                 self.variants = [NoteVariant(self.notes, bass)]
             elif len(self.notes) == 2:
-                self.type = self.Type.INTERVAL
                 self.variants = [
                     IntervalVariant(self.notes, bass),
                 ]
             else:
-                self.type = self.Type.CHORD
                 for i in range(len(self.notes)):
                     next = [self.notes[(j+i) % len(self.notes)]
                             for j in range(len(self.notes))]
                     self.variants += [ChordVariant(next, bass)]
+            self.variants.sort()
 
     def __str__(self) -> str:
         if len(self.variants) > 0:
@@ -44,6 +36,8 @@ class Chord():
 class Variant():
     def __init__(self, notes: list[Note], bass: Note) -> None:
         self.root = notes[0]
+        self.notes = notes
+        self.sorted_notes = sorted(notes)
         self.bass = bass
         self.name_short = ""
         self.name_complete = ""
@@ -56,6 +50,9 @@ class NoteVariant(Variant):
     def __init__(self, notes: list[Note], bass: Note) -> None:
         super().__init__(notes, bass)
         self.name_short = self.root.pitch
+
+    def __lt__(self, __o: "NoteVariant"):
+        return self.root < __o.root
 
 
 class IntervalVariant(Variant):
@@ -76,8 +73,10 @@ class IntervalVariant(Variant):
 
     def __init__(self, notes: list[Note], bass: Note) -> None:
         super().__init__(notes, bass)
-        sorted_notes = sorted(notes)
-        self.form(sorted_notes[0], sorted_notes[1])
+        self.form(self.sorted_notes[0], self.sorted_notes[1])
+
+    def __lt__(self, __o: "IntervalVariant"):
+        return self.sorted_notes[0] < __o.sorted_notes[0]
 
     def form(self, n0: Note, n1: Note) -> None:
         interval = (n1 - n0) % 12
@@ -169,10 +168,28 @@ class ChordVariant(Variant):
 
         if len(notes) > 2:
             # TODO: remove notes in different octaves
-            self.root = notes[0]
             self.distances = [notes[i] - notes[0]
                               for i in range(1, len(notes))]
             self.form(self.distances)
+
+    def __lt__(self, __o: "ChordVariant") -> bool:
+        if self.triad and not __o.triad:
+            return True
+        elif __o.triad and not self.triad:
+            return False
+        elif self.triad and __o.triad:
+            if len(self.extensions) == 0 and len(__o.extensions) > 0:
+                return True
+            elif len(self.extensions) > 0 and len(__o.extensions) == 0:
+                return False
+            elif self.bass == self.root and __o.bass != __o.root:
+                return True
+            elif self.bass != self.root and __o.bass == __o.root:
+                return False
+            else:
+                return len(self.extensions) < len(__o.extensions)
+        else:
+            return True
 
     def update_name(self) -> None:
         name_short = self.root.pitch
