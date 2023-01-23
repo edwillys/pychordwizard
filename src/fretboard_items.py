@@ -192,17 +192,21 @@ class StringButtonItem(QGraphicsRectItem):
 
 class FretboardInlayItem(QGraphicsRectItem):
     def __init__(self, x: float, y: float, w: float, h: float,
-                 fret: int, size: int = 5, style: str = "dot", parent=None):
+                 fret: int, num_strings: int, size: int = 5, 
+                 style: str = "dot", parent=None) -> None:
         QGraphicsRectItem.__init__(self, x, y, w, h, parent)
         self.size = size
         self.fret = fret
         self.style = style
+        self.num_strings = num_strings
 
     def paint(self, painter: QtGui.QPainter, option, widget) -> None:
         norm_fret = self.fret % 13
         rect = self.rect()
         center = rect.center()
         cx = center.x()
+        x_offset = rect.width() / (self.num_strings - 1.)
+
         if self.style == "dot":
             color = QColor(QtCore.Qt.lightGray)
             color.setAlphaF(0.5)
@@ -212,11 +216,20 @@ class FretboardInlayItem(QGraphicsRectItem):
             painter.setPen(pen)
             if norm_fret == 3 or norm_fret == 5 or \
                     norm_fret == 7 or norm_fret == 9:
-                painter.drawEllipse(center, self.size / 2., self.size / 2.)
+                if self.num_strings % 2:
+                    cl = QPointF(cx - (0.5 * x_offset), center.y())
+                    cr = QPointF(cx + (0.5 * x_offset), center.y())
+                    painter.drawEllipse(cl, self.size / 2., self.size / 2.)
+                    painter.drawEllipse(cr, self.size / 2., self.size / 2.)
+                else:
+                    painter.drawEllipse(center, self.size / 2., self.size / 2.)
             elif norm_fret == 12:
-                offset = rect.width() / 4. - self.size
-                cl = QPointF(cx - offset, center.y())
-                cr = QPointF(cx + offset, center.y())
+                if self.num_strings % 2:
+                    cl = QPointF(cx - (1.5 * x_offset), center.y())
+                    cr = QPointF(cx + (1.5 * x_offset), center.y())
+                else:
+                    cl = QPointF(cx - x_offset, center.y())
+                    cr = QPointF(cx + x_offset, center.y())
                 painter.drawEllipse(cl, self.size / 2., self.size / 2.)
                 painter.drawEllipse(cr, self.size / 2., self.size / 2.)
         self.scene().update()

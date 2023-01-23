@@ -218,7 +218,8 @@ class FretboardView(QtWidgets.QGraphicsView):
                 (fret - 1) * self.FRETHEIGHT + self.y_offset,
                 (self.num_strings - 1) * self.FRETWIDTH,
                 self.FRETHEIGHT,
-                fret
+                fret,
+                self.num_strings
             )
             for fret in range(1, self.num_frets+1)
         ]
