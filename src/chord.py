@@ -1,5 +1,4 @@
 from note import Note
-from enum import Enum
 from collections import OrderedDict
 
 
